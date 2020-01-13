@@ -1,0 +1,71 @@
+
+
+####### Case Information #######
+Restart = False
+InputFile = nacatri_fine.gri
+SavePrefix = naca
+EqnSetFile = naca.eqn
+GeometryFile = naca.geom
+InterpBasis = TriLagrange
+InterpOrder = 1
+SpaceScheme = NewDG
+SequenceOrderAdd = 0
+#DataMerge = naca_start.data
+
+####### General Solver Information #######
+NonlinearSolver = Newton
+LinearSolver = GMRES
+Preconditioner = ILU0
+nIterNonlinear = 100
+nIterGMRESOuter = 10
+nIterGMRESInner = 200
+ResidualTolerance = 5e-7
+MinLinResDecreaseFactor = 1e-5
+ViscStabFactor = 2.0
+CoarseCorrectionFlag = True
+CoarseCorrectionOrder = 1
+CoarseCorrectionIter = 10
+
+
+###### Temporal parameters #######
+CFL = 10
+CFLIncreaseFactor = 10
+CFLMin = 1e-7
+TimeScheme = BDF2
+Time = 0
+EndTime = 0.5
+nTimeStep = 5
+UnsteadyWriteInterval = 1
+
+####### Output Parameters #######
+Verbosity = Medium
+LogOutput = Drag Lift
+
+###### Adjoint parameters #######
+AdjointOutputs = None
+nIterAdjoint = 50
+AdjointResidualTolerance = 1e-9
+DoContinuousTimeAdjoint = True
+AdjointTimeScheme = BDF1
+
+###### Error estimation ########
+FineSpace_LinearSolver = GMRES
+FineSpace_Preconditioner = LineJacobi
+FineSpace_nIterNonlinear = 0
+FineSpace_nIterAdjoint = 8
+UErrEstOn = True
+UErrEstnSubSlab = 1
+UErrEstOrderIncrement = 1
+ErrEstOrderIncrement = 1
+
+###### Adaptation ########
+AdaptIter = 1
+AdaptOn = Output
+AdaptOutput = Lift
+AdaptTolerance = 1e-9
+AdaptHMechanics = None
+AdaptP = True
+DynamicSpatialRef = False
+AdaptFixedGrowthFactor = 1.25
+AdaptFixedFraction = 1.25
+AdaptIsotropic = True
