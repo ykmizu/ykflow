@@ -6,7 +6,7 @@ cmake_policy(SET CMP0075 NEW)
 SET(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake-modules")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
 set( CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib )
-set(CMAKE_C_FLAGS "-g -Wall /Users/yshimiz/xflow/build/src/xf_SolverMultiStepStage.o")
+set(CMAKE_C_FLAGS "-g -Wall /home/yshimiz/xflow/build/src/xf_SolverMultiStepStage.o")
 
 
 set (CMAKE_C_FLAGS "-std=c11 -fms-extensions")
@@ -16,19 +16,19 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c11 -fms-extensions")
 # Bring the headers into the project
 #------------------------------------------------------------------------------
 include_directories(include)
-include_directories(/Users/yshimiz/xflow/dyn/Acoustics)
-include_directories(/Users/yshimiz/xflow/dyn/CompressibleNS)
-include_directories(/Users/yshimiz/xflow/dyn/HydroCommon)
-include_directories(/Users/yshimiz/xflow/dyn/RadHydro)
-include_directories(/Users/yshimiz/xflow/dyn/Scalar)
-include_directories(/Users/yshimiz/xflow/dyn/TwoPhase)
-include_directories(/Users/yshimiz/xflow/dyn/ShallowWater)
+include_directories(/home/yshimiz/xflow/dyn/Acoustics)
+include_directories(/home/yshimiz/xflow/dyn/CompressibleNS)
+include_directories(/home/yshimiz/xflow/dyn/HydroCommon)
+include_directories(/home/yshimiz/xflow/dyn/RadHydro)
+include_directories(/home/yshimiz/xflow/dyn/Scalar)
+include_directories(/home/yshimiz/xflow/dyn/TwoPhase)
+include_directories(/home/yshimiz/xflow/dyn/ShallowWater)
 
 
-include_directories(/Users/yshimiz/xflow/include)
-include_directories(/Users/yshimiz/xflow/prog)
-include_directories(/Users/yshimiz/xflow/src)
-link_directories(/Users/yshimiz/xflow/lib)
+include_directories(/home/yshimiz/xflow/include)
+include_directories(/home/yshimiz/xflow/prog)
+include_directories(/home/yshimiz/xflow/src)
+link_directories(/home/yshimiz/xflow/lib)
 #------------------------------------------------------------------------------
 # Add the source files here
 #------------------------------------------------------------------------------
@@ -81,10 +81,10 @@ src/yk_calculateError.c
 )
 
 SET(OBJS
-  /Users/yshimiz/xflow/build/prog/xf_Arg.o
-#  /Users/yshimiz/xflow/build/prog/xf_AdaptChaos_Common.o
-  /Users/yshimiz/xflow/build/src/xf_EqnSetHook.o
-  /Users/yshimiz/xflow/build/src/xf_SolverMultiStepStage.o
+  /home/yshimiz/xflow/build/prog/xf_Arg.o
+#  /home/yshimiz/xflow/build/prog/xf_AdaptChaos_Common.o
+  /home/yshimiz/xflow/build/src/xf_EqnSetHook.o
+  /home/yshimiz/xflow/build/src/xf_SolverMultiStepStage.o
 )
 
 
@@ -118,7 +118,7 @@ install(TARGETS chaos DESTINATION ../lib)
 find_package(PETSc REQUIRED)
 include_directories(${PETSC_INCLUDES})
 add_definitions(${PETSC_DEFINITIONS})
-target_link_libraries(chaos /Users/yshimiz/petsc/arch-darwin-c-debug/lib/libpetsc.dylib)
+target_link_libraries(chaos /home/yshimiz/petsc/arch-darwin-c-debug/lib/libpetsc.so)
 
 #------------------------------------------------------------------------------
 # Link the SLEPc library that chaos is dependent on
@@ -126,12 +126,12 @@ target_link_libraries(chaos /Users/yshimiz/petsc/arch-darwin-c-debug/lib/libpets
 find_package(SLEPc REQUIRED)
 include_directories(${SLEPC_INCLUDES})
 add_definitions(${SLEPC_DEFINITIONS})
-target_link_libraries(chaos /Users/yshimiz/slepc/arch-darwin-c-debug/lib/libslepc.dylib)
+target_link_libraries(chaos /home/yshimiz/slepc/arch-darwin-c-debug/lib/libslepc.so)
 
 #------------------------------------------------------------------------------
 # Link MPICH library that chaos is dependent on
 #------------------------------------------------------------------------------
-target_link_libraries(chaos /Users/yshimiz/petsc/arch-darwin-c-debug/lib/libmpich.dylib)
+target_link_libraries(chaos /home/yshimiz/petsc/arch-darwin-c-debug/lib/libmpich.so)
 
 #------------------------------------------------------------------------------
 # Link Executable to chaos library which is connected to petsc/slepc
@@ -149,7 +149,7 @@ target_link_libraries(yk_STLSPG chaos)
 # Link Xflow here
 #------------------------------------------------------------------------------
 add_library(xflow SHARED IMPORTED)
-set_target_properties(xflow PROPERTIES IMPORTED_LOCATION /Users/yshimiz/xflow/lib/libxfSerial.so)
+set_target_properties(xflow PROPERTIES IMPORTED_LOCATION /home/yshimiz/xflow/lib/libxfSerial.so)
 #target_link_libraries(ykflow2D xflow)
 #target_link_libraries(yk_STSLPG xflow)
 target_link_libraries(chaos xflow)
@@ -157,7 +157,7 @@ target_link_libraries(chaos xflow)
 #target_link_libraries(${SRC_SOURCE_FILES} xflow)
 
 #add_library(CompressibleNS SHARED IMPORTED)
-#set_target_properties(CompressibleNS PROPERTIES IMPORTED_LOCATION /User/yshimiz/xflow/lib/libCompressibleNS.so)
+#set_target_properties(CompressibleNS PROPERTIES IMPORTED_LOCATION /home/yshimiz/xflow/lib/libCompressibleNS.so)
 #target_link_libraries(ykflow2D Acoustics)
 #target_link_libraries(ykflow2D CompressibleNS)
 #target_link_libraries(ykflow2D RadHydro)
@@ -170,5 +170,5 @@ target_link_libraries(chaos xflow)
 
 
 if (PARALLEL_BUILD)
-   target_link_libraries(ykflow2D /Users/yukikoshimizu/xflow/lib/libxfParallel.so)
+   target_link_libraries(ykflow2D /home/yukikoshimizu/xflow/lib/libxfParallel.so)
 endif ( PARALLEL_BUILD )
