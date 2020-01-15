@@ -28,10 +28,8 @@ void linearLeastSquares(Mat A, Vec b, Vec x){
   //----------------------------------------------------------------------------
   // Implementation
   //----------------------------------------------------------------------------
-  printf("before mine\n");
   MatTransposeMatMult(A,A ,MAT_INITIAL_MATRIX, PETSC_DEFAULT, &C);
   MatMultTranspose(A, b, rightHS);
-  printf("hrm hrm \n");
   /* printf("next best thing\n"); */
   /* qRFactorization(A, Q, R); //QR decomposition */
   /* printf("sketch\n"); */
@@ -65,7 +63,8 @@ void linearLeastSquares(Mat A, Vec b, Vec x){
   /* VecCopy(b, x); //x is the one that minimizations Ax-b */
   /* VecDestroy(&rightHS); */
   KSPDestroy(&ksp);
-
+  MatDestroy(&C);
+  VecDestroy(&rightHS);
 }
 
 

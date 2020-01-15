@@ -15,8 +15,6 @@ void createSystem(Universe equation, Galaxy *state){
 
 
   state->time.count = (state->time.t_f-state->time.t_0)/state->time.dt; //num
-  printf("%g %g %g\n", state->time.t_f, state->time.t_0, state->time.dt);
-  printf("%d i suck \n", state->time.count);
   createMesh(&state->space);
   assignBasisQuad(state); //Establish the basis functions and quadrature point
   initializeStates(equation, state);

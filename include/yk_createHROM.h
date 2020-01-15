@@ -49,6 +49,9 @@ void yk_runReducedOrderModel_ST(yk_PrimalSolver *ykflow, Multiverse *multiquatio
 			     Cluster *primal, Cluster *primalApprox,
 			     Is_it *reduced);
 
+void yk_destroyReducedOrderModel_ST(yk_PrimalSolver *ykflow,
+                                    Multiverse *multiquation, Cluster *primal,
+                                    Cluster *primalApprox, Is_it *reduced);
 void yk_createReducedOrderModel(yk_PrimalSolver *ykflow,
 				Multiverse *multiquation, Cluster *primal,
 				Cluster *primalApprox, Is_it *reduced);

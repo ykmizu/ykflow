@@ -61,8 +61,6 @@ Universe read_eqn(int argc, char* argv[]){
           if (lines_temp[length-1] == '\n')
             lines_temp[length-1] = '\0';
           strcpy(eqn.nameEqn, lines_temp);
-	  printf("%s\n", eqn.nameEqn);
-	  getchar();
         }else if(strcmp(lines, "numStates") == 0){
           eqn.numStates = atoi(lines_temp);
         }else if(strcmp(lines, "numParams") == 0){
@@ -202,7 +200,6 @@ void read_input(int argc, char *argv[], Universe eqn, Galaxy* u_fine,
 	    reduced->paramsH[i] = atof(strtok(NULL, " "));
 	}else if (strcmp(lines, "dparams")== 0 ){
 	  reduced->dparams[0] = atof(strtok(lines_temp, " "));
-	  printf("who cares %g\n", reduced->dparams[0]);
 	  for (i=1; i<reduced->numParams; i++)
 	    reduced->dparams[i] = atof(strtok(NULL, " "));
 	  reduced->numParamSet = 1;
@@ -210,11 +207,6 @@ void read_input(int argc, char *argv[], Universe eqn, Galaxy* u_fine,
 	    inter= ((reduced->paramsH[i]*10-reduced->paramsL[i]*10)/
 		    reduced->dparams[i])/10+1;
 	    reduced->numParamSet *= inter;
-	  }
-	  for (i=0; i<reduced->numParams; i++){
-	    printf("%g LOW \n", reduced->paramsL[i]);
-	    printf("%g HIGH\n", reduced->paramsH[i]);
-	    printf("%g Delta\n", reduced->dparams[i]);
 	  }
 	  /* }else if (strcmp(lines, "typeSolutionLSS") ==0){ */
 	  /*   miscParameters[6] = atoi(lines_temp); */

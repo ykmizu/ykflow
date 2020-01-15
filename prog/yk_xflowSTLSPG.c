@@ -440,8 +440,7 @@ int yk_getOffDiagonalJacobiansGroup(yk_PrimalSolver *ykflow, Galaxy *primal,
 
   /* if (*Jacobian[i] != NULL) */
   yk_matrix2D2MatGroup(xflow->All, Mass, primal, *Jacobian, reduced);
-  printf("replace\n");
-  getchar();
+  xf_Call(xf_DestroySolverData(SolverData));
   return ierr;
 }
 
@@ -513,7 +512,6 @@ void yk_xflow_totalResidual(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   xf_DataSet *DataSet = NULL;
   char SavePrefix[xf_MAXSTRLEN];
   xf_Data *D=NULL;
-  printf("relax\n");
   //---------------------------------------------------------------------------
   // Implementation
   //---------------------------------------------------------------------------
@@ -561,7 +559,6 @@ void yk_xflow_totalResidual(yk_PrimalSolver *ykflow, Multiverse *multiquation,
     /* printf("%d trick trick \n", i); */
     if (i==1){
       xf_Call(xf_VectorGroupMultSet(UGi[i], a[i], xfe_Set, SG));
-      printf("%g\n", a[i]);
     }else{
       xf_Call(xf_VectorGroupMultSet(UGi[i], a[i], xfe_Add, SG));
     }
@@ -619,6 +616,8 @@ void yk_xflow_totalResidual(yk_PrimalSolver *ykflow, Multiverse *multiquation,
 
   /* SolverError = xf_CheckSolverError(ierr, xfex_True, SolverData, UGSafe, */
   /* 				    UG, &Rewind); */
+  xf_Call(xf_DestroySolverData(SolverData));
+  xf_Call(xf_DestroyDataSet(DataSet));
 }
 
 /* void yk_xflow_totalResidual(yk_PrimalSolver *ykflow, Multiverse *multiquation, */
@@ -752,10 +751,9 @@ void yk_xfData2Dat(Galaxy *gObj, xf_VectorGroup *UG, char *jobFile){
   char numFilesString[xf_MAXSTRLEN];
   char dataString[xf_MAXSTRLEN];
 
-  printf("%d bunny \n", gObj->time.count);
   sprintf(stateInput, "%s_U", jobFile);
   sprintf(numFilesString, "%d", numFiles);
-  char * argv[] =  {"/Users/yshimiz/xflow/bin/xf_Data2Text", " -inroot ",
+  char * argv[] =  {"/home/yshimiz/xflow/bin/xf_Data2Text", " -inroot ",
                     stateInput, " -batch", " 0 1 ",  numFilesString, NULL};
   char outputS[200];
   char * env[] = {NULL};
@@ -766,6 +764,7 @@ void yk_xfData2Dat(Galaxy *gObj, xf_VectorGroup *UG, char *jobFile){
   // Implementation
   //---------------------------------------------------------------------------
   printf("%s\n", argv[0]);
+
   sprintf(outputS, "%s", argv[0]);
 
   for (i=1; i<6; i++)
@@ -850,9 +849,6 @@ void yk_Init(yk_PrimalSolver *ykflow, Multiverse *multiquation, Cluster *fom,
   //---------------------------------------------------------------------------
   xf_Call(xf_GetKeyValue(xflow->KeyValueArg, "job", jobFile));
   strcpy(multiquation->equation.nameEqn, jobFile);
-  printf("%s\n", multiquation->equation.nameEqn);
-  printf("i'm really confused right now\n");
-  printf("%d",xflow->UG->Vector[0]->StateRank);
   multiquation->equation.numStates = xflow->UG->Vector[0]->StateRank;
   sprintf(SavePrefix, "%s", jobFile);
   //---------------------------------------------------------------------------
@@ -949,8 +945,6 @@ void yk_Init(yk_PrimalSolver *ykflow, Multiverse *multiquation, Cluster *fom,
   reduced->paramMeshGrid =
     (double *) malloc (reduced->numParams*reduced->numParamSet*sizeof(double));
   definelocalMeshGrid(0, reduced, testparam,  &count);
-  for (i=0; i<reduced->numParams*reduced->numParamSet; i++)
-    printf("velvet %g\n", reduced->paramMeshGrid[i]);
   free(testparam);
 
 
@@ -1140,7 +1134,6 @@ int yk_forwardSimulation(yk_Xflow *xflow){
   //---------------------------------------------------------------------------
   // Destroy and Free anything tht should be dealt with
   //---------------------------------------------------------------------------
-  /* xf_Call(xf_DestroyTimeHistData(TimeHistData)); */
 
   return ierr;
 }
@@ -1166,7 +1159,6 @@ void yk_print2xflowTxt(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   xf_Call(xf_DataSetAdd(DataSet, "State", xfe_VectorGroup, xfe_True, (void *)
 			xflow->UG, NULL));
   sprintf(temp, "%s_ROM_Approximate_U", SavePrefix);
-  printf("%s\n", temp);
   for (i=0; i<sol->time.count+1; i++){
     ks_readSolution(multiquation->equation, sol, i);
     yk_array2VectorGroup(xflow->UG, sol);
@@ -1198,7 +1190,6 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   /* yk_createReducedOrderModel(ykflow, multiquation, fom, rom, reduced); */
   /* /\* if (!reduced->restart) *\/ */
   /* /\* yk_runReducedOrderModel(ykflow, multiquation, fom, rom, reduced); *\/ */
-  /* /\* yk_print2xflowTxt(ykflow, multiquation, rom->self); *\/ */
   /* //--------------------------------------------------------------------------- */
   /* // Hyper-Reduced Order Modeling */
   /* //--------------------------------------------------------------------------- */
@@ -1207,58 +1198,21 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   /* printf("----------------------------------------------------------------\n"); */
   /* yk_createHyperReducedOrderModel(ykflow, multiquation, fom, hrom, reduced); */
   /* yk_runHyperReducedOrderModel(ykflow, multiquation, fom, hrom, reduced); */
-  //---------------------------------------------------------------------------
-  // Space-Time Reduced-Order Modeling
+  //---------------------------------------------------------------------------  // Space-Time Reduced-Order Modeling
   //---------------------------------------------------------------------------
   printf("----------------------------------------------------------------\n");
   printf("|          Space-Time Hyper-Reduced-Order Modeling             |\n");
   printf("----------------------------------------------------------------\n");
   yk_createReducedOrderModel_ST(ykflow, multiquation, fom, rom, reduced);
   yk_runReducedOrderModel_ST(ykflow, multiquation, fom, rom, reduced);
+  yk_print2xflowTxt(ykflow, multiquation, rom->self);
+  yk_destroyReducedOrderModel_ST(ykflow, multiquation, fom, rom, reduced);
 }
 
-/* int main(int argc, char *argv[]){ */
-/*   //  static char help[] = "Simple PETSc program"; */
-
-/*   //int rank, max_len; */
-
-
 int main(int argc, char** argv) {
-
-  /* // Get the number of processes */
-    /* int world_size; */
-    /* MPI_Comm_size(MPI_COMM_WORLD, &world_size); */
-
-    /* // Get the rank of the process */
-    /* int world_rank; */
-    /* MPI_Comm_rank(MPI_COMM_WORLD, &world_rank); */
-
-    /* // Get the name of the processor */
-    /* char processor_name[MPI_MAX_PROCESSOR_NAME]; */
-    /* int name_len; */
-    /* MPI_Get_processor_name(processor_name, &name_len); */
-
-    /* // Print off a hello world message */
-    /* printf("Hello world from processor %s, rank %d out of %d processors\n", */
-    /*        processor_name, world_rank, world_size); */
-
-    /* // Finalize the MPI environment. */
-
-  /* MPI_Comm_rank(MPI_COMM_WORLD, &rank); */
-  /* MPI_Get_processor_name(processorname,&max_len); */
-  /* printf("Hello world!  I am process number: %d on processor %s\n", rank, processorname); */
-  /*  PetscErrorCode ierr; */
-  /* ierr = PetscInitialize(&argc, &argv, NULL, NULL);CHKERRQ(ierr); */
-  /* //ierr = PetscPr */
-  /* //intf(PETSC_COMM_WORLD, "Hello World!\n");CHKERRQ(ierr); ierr = PetscFinalize(); */
-  /* int *check = (int *) malloc (4*sizeof(int)); */
-  /* //PetscInitialize(&argc, &argv, NULL, NULL); */
-  /* //printf("HELLO\n"); */
-  /* PetscFinalize();    */
-  //------------------------------------//-------------------------------------
+//------------------------------------//-------------------------------------
   //Variables here                     // Comments section
   //------------------------------------//-------------------------------------
- /*  static char help[] = "Reads a PETSc matrix and vector from a file and reorders it"; */
   int ierr;
   int myRank, nProc;
   char *ArgIn[] = {"job", "NULL", ".job file name to read (run parameters)",
@@ -1270,17 +1224,15 @@ int main(int argc, char** argv) {
   Cluster *fom = (Cluster *) malloc (sizeof(Cluster));
   Cluster *hrom = (Cluster *) malloc (sizeof(Cluster));
   Is_it *reduced =(Is_it*) malloc (sizeof(Is_it));
- /*  printf("HELLO\n"); */
   yk_PrimalSolver *ykflow = new_Xflow();
   yk_Xflow *xflow = (yk_Xflow *) ykflow->solver;  //polymorphism
- /* /\*  //--------------------------------------------------------------------------- *\/ */
- /* /\*  // Intialize everything related to the xflow stuff *\/ */
- /* /\*  //--------------------------------------------------------------------------- *\/ */
- /*  PetscInitialize(&argc,&argv,(char*)0,help);if (ierr) return ierr; */
+  //---------------------------------------------------------------------------
+  // Intialize everything related to the xflow stuff
+  //---------------------------------------------------------------------------
   SlepcInitialize(&argc, &argv, NULL, NULL);
   PetscViewerPushFormat(PETSC_VIEWER_STDOUT_SELF, PETSC_VIEWER_ASCII_MATLAB);
 
-  /* Initialize parallel-run (no effect in serial) */
+ /*  /\* Initialize parallel-run (no effect in serial) *\/ */
   xf_Call(xf_MPI_Init(&argc, &argv));
   /* /\* Determine myRank*\/ */
   xf_Call(xf_MPI_GetRank(&myRank, &nProc));
@@ -1288,13 +1240,14 @@ int main(int argc, char** argv) {
   xf_Call(xf_CreateKeyValue(&xflow->KeyValueArg));
   /* // parse arguments */
   ierr = xf_ParseArg(ArgIn, argc, argv, xflow->KeyValueArg);
- if (ierr == xf_FORCE_QUIT) return xf_OK;
+  if (ierr == xf_FORCE_QUIT) return xf_OK;
   if (ierr != xf_OK) return xf_Error(ierr);
-  //---------------------------------------------------------------------------
-  // Search for Attractor/Trajectory Burn Time using xflow only
-  //---------------------------------------------------------------------------
+  /*  //--------------------------------------------------------------------------- */
+ /*  // Search for Attractor/Trajectory Burn Time using xflow only */
+ /*  //--------------------------------------------------------------------------- */
   yk_forwardSimulation(xflow);
-  printf("paris\n");
+ /*  printf("paris\n"); */
+
   yk_Init(ykflow, multiquation, fom, reduced);
   yk_RunErrorEstChaos(ykflow, multiquation, fom, rom, hrom, argv, reduced);
   //---------------------------------------------------------------------------
@@ -1302,30 +1255,29 @@ int main(int argc, char** argv) {
   //---------------------------------------------------------------------------
   destroySystem(multiquation->equation, fom->self);
 
-  //  free(reduced->numParams);
-
   free(fom->self->index);
   free(fom->self);
 
-  xf_Call(xf_DestroyVectorGroup(xflow->UG, xfe_True, xfe_True));
+ /*  xf_Call(xf_DestroyVectorGroup(xflow->UG, xfe_True, xfe_True)); */
+  xf_Call(xf_DestroyTimeHistData(xflow->TimeHistData));
   xf_CloseEqnSetLibrary(&xflow->All);
-  /* xf_Call(xf_DestroyAll(xflow->All)); */
+  xf_Call(xf_DestroyAll(xflow->All));
 
   xf_Call(xf_DestroyKeyValue(xflow->KeyValueArg));
-  /* free(rom->self); */
-  /* free(reduced->params); */
-  /* /\* free(reduced->numParams); *\/ */
-  /* free(reduced->paramsL); */
-  /* free(reduced->paramsH); */
-  /* free(reduced->dparams); */
-  /* free(reduced->paramMeshGrid); */
+ /*  /\* free(rom->self); *\/ */
+  free(reduced->params);
+  free(reduced->paramsL);
+  free(reduced->paramsH);
+  free(reduced->dparams);
+  free(reduced->paramMeshGrid);
   free(reduced);
   free(rom);
   free(fom);
   free(hrom);
   free(multiquation);
+  delete_Xflow(ykflow);
+
   SlepcFinalize();
 
-  /* delete_Xflow(ykflow); */
   /* return 0; */
 }

@@ -11,9 +11,6 @@ void yk_kron(Mat A,  Vec B, double ***kron){
   PetscInt vecSize;
   MatGetSize(A, &row, &col);
   VecGetSize(B, &vecSize);
-  printf("%d\n", row);
-  printf("oh god i hear his voice %d\n", vecSize);
-  getchar();
   PetscScalar *feelings = (PetscScalar *) malloc
     (vecSize*sizeof(PetscScalar));
   PetscInt *vecSizeIndex = (PetscInt *) malloc (vecSize*sizeof(PetscInt));
@@ -22,9 +19,6 @@ void yk_kron(Mat A,  Vec B, double ***kron){
   int *ptr;
   /* kron = (double *) malloc(row*vecSize*col*sizeof(double)); */
   int r = row*vecSize;
-  printf("%d\n", r);
-  printf("sneeze\n");
-  getchar();
   int c = col;
 
   *kron = (double **) malloc (r*sizeof(double*));
@@ -42,8 +36,6 @@ void yk_kron(Mat A,  Vec B, double ***kron){
   /*   (*kron)[i] = (ptr + c * i); */
 
   VecGetValues(B, vecSize, vecSizeIndex, feelings);
-
-  printf("che che che\n");
   for (i=0; i<row; i++){
     for (j=0; j<col; j++){
 
@@ -52,8 +44,9 @@ void yk_kron(Mat A,  Vec B, double ***kron){
 	(*kron)[i*vecSize+k][j]  = val[0]*feelings[k];
     }
   }
-  printf("%g\n", (*kron)[0][0]);
-  printf("%g\n", (*kron)[1][1]);
+  free(feelings);
+  free(vecSizeIndex);
+
 }
 
 /* void yk_kron(Mat A, Vec B, Mat *kron){ */

@@ -10,9 +10,6 @@ void yk_createReducedOrderModel_ST(yk_PrimalSolver *ykflow,
 				   Multiverse *multiquation, Cluster *primal,
 				   Cluster *primalApprox, Is_it *reduced){
 
-    printf("%s\n", multiquation->equation.nameEqn);
-  getchar();
-
   //------------------------------------//-------------------------------------
   // Variables here                     // Comments section
   //------------------------------------//-------------------------------------
@@ -21,21 +18,16 @@ void yk_createReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   char reducedID[1000];                 // Name given to the reduced state
   Mat snapshot;                         // Snapshot Matrix before POD
   Mat *st_snapshot;
-  printf("%s\n", multiquation->equation.nameEqn);
-  getchar();
   Universe _equationFull = multiquation->equation;
   Universe _equationReduced = multiquation->equationReduced;
   Mat *s_mu;
-  Mat *st_basis_temp;
+  Mat *st_basis_temp = (Mat *) malloc (reduced->nBasisFuncs*sizeof(Mat));;
   Vec init;
-  PetscInt *timeCount=(PetscInt *) malloc (primal->self->time.count*
-					   sizeof(PetscInt));
-  for (i=0; i<primal->self->time.count; i++)
-    timeCount[i] = i;
   /* Mat *tryrOB; */
   /* reduced->ST_rOBState_i = tryrOB; */
   PetscMalloc1(reduced->nBasisFuncs, &st_snapshot);
-  PetscMalloc1(reduced->nBasisFuncs, &st_basis_temp);
+  /* PetscMalloc1(reduced->nBasisFuncs, &st_basis_temp); */
+
   reduced->ST_rOBState_i = (Mat *) malloc (primal->self->time.count*sizeof(Mat));
   /* PetscMalloc1(primal->self->time.count, &tryrOB); */
   //---------------------------------------------------------------------------
@@ -43,46 +35,28 @@ void yk_createReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   //---------------------------------------------------------------------------
   primalApprox->self = (Galaxy *) malloc (sizeof(Galaxy));
   primalApprox->reduced = (Galaxy *) malloc (sizeof(Galaxy));
-      printf("%s\n", multiquation->equation.nameEqn);
-  getchar();
-
   strcpy(approximateID, "ROM_approximate");
   strcpy(reducedID, "ROM_reduced");
   strcpy(primalApprox->clusterId, primal->clusterId);
-  printf("hail storm\n");
 
   //---------------------------------------------------------------------------
   // Create reduced model calculation for state
   //---------------------------------------------------------------------------
   s_mu = yk_createSnapshotState(ykflow, multiquation, primal, &snapshot,
 				reduced->dss, reduced);
-  MatView(snapshot, PETSC_VIEWER_STDOUT_SELF);
-  printf("cray cray bah hahaha\n");
-  getchar();
   yk_properOrthogonalDecompose(&snapshot, primal->self->systemSize,
 			       primal->self->index, reduced->nBasisFuncs,
 			       &reduced->rOBState);
-  MatView(reduced->rOBState, PETSC_VIEWER_STDOUT_SELF);
-  printf("blah blahb asd\n");
-  getchar();
   //---------------------------------------------------------------------------
   //Calculate the space time basis and make it be the reduced->ST_rOBState
   //---------------------------------------------------------------------------
-  MatView(s_mu[0], PETSC_VIEWER_STDOUT_SELF);
-  printf("heard something\n");
-  getchar();
   yk_createTemporalSnapshotState(ykflow, multiquation, primal, st_snapshot,
 				 s_mu,
 				 reduced->dss, reduced);
-  MatView(st_snapshot[0], PETSC_VIEWER_STDOUT_SELF);
-  printf("lights\n");
-  getchar();
   yk_properOrthogonalDecomposeGroup(st_snapshot, reduced->nBasisFuncs,
 				    primal->self->time.count,
-				    timeCount, reduced->nBasisTime,
+				    primal->self->index, reduced->nBasisTime,
 				    st_basis_temp);
-  printf("nice nice nice nice nice nice nice\n");
-
   //---------------------------------------------------------------------------
   // Callcualte the ST_HOSVD Tailored space-time basis
   //---------------------------------------------------------------------------
@@ -121,15 +95,24 @@ void yk_createReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   //CreateInitial conditions based on s_mu
   //---------------------------------------------------------------------------
   createInitialConditions_ST(ykflow, primalApprox, s_mu, &init, reduced);
-  VecView(init, PETSC_VIEWER_STDOUT_SELF);
   vec2Array(_equationReduced, primalApprox->reduced, init);
   ks_printSolution(_equationReduced, primalApprox->reduced, 0);
-  printf("long list of\n");
 
   //---------------------------------------------------------------------------
   // Destroy Everything
   //---------------------------------------------------------------------------
+  for (i=0; i<reduced->nBasisFuncs; i++){
+    MatDestroy(&st_snapshot[i]);
+    MatDestroy(&st_basis_temp[i]);
+  }
+
+  PetscFree(st_snapshot);
+  free(st_basis_temp);
+  VecDestroy(&init);
   MatDestroy(&snapshot);
+  for (i=0; i<reduced->numParamSet; i++)
+    MatDestroy(&s_mu[i]);
+  PetscFree(s_mu);
 }
 
 void yk_runReducedOrderModel_ST(yk_PrimalSolver *ykflow,
@@ -138,6 +121,7 @@ void yk_runReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   //------------------------------------//-------------------------------------
   // Variables here                     // Comments section
   //------------------------------------//-------------------------------------
+  int i;
   int innertimesolver = 1;              //time solver
   Vec primal_0;
   Vec primalReducedVec;
@@ -167,11 +151,26 @@ void yk_runReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   // Gauss NEwton to minimize 1/2 norm(Residua, 2)^2
   //---------------------------------------------------------------------------
   yk_gaussNewtonSolve_ST(ykflow, multiquation, primalApprox, reduced,
-		      innertimesolver, &reduced->nSnapshotsRJ);
+  		      innertimesolver, &reduced->nSnapshotsRJ);
   VecDestroy(&primal_0);
   VecDestroy(&primalReducedVec);
+}
 
-
+void yk_destroyReducedOrderModel_ST(yk_PrimalSolver *ykflow,
+				    Multiverse *multiquation, Cluster *primal,
+				    Cluster *primalApprox, Is_it *reduced){
+  int i; //initialization for iteration
+  Universe _equationReduced = multiquation->equationReduced;
+  MatDestroy(&reduced->rOBState);
+  for (i=0; i<primal->self->time.count; i++)
+    MatDestroy(&reduced->ST_rOBState_i[i]);
+  free(reduced->ST_rOBState_i);
+  MatDestroy(&reduced->ST_rOBState);
+  free(primalApprox->self->index);
+  destroySystem(_equationReduced, primalApprox->reduced);
+  destroySystem(multiquation->equation, primalApprox->self);
+  free(primalApprox->reduced);
+  free(primalApprox->self);
 }
 
 
@@ -198,10 +197,6 @@ void yk_createReducedOrderModel(yk_PrimalSolver *ykflow,
   strcpy(approximateID, "ROM_approximate");
   strcpy(reducedID, "ROM_reduced");
   strcpy(primalApprox->clusterId, primal->clusterId);
-    printf("%s\n", multiquation->equation.nameEqn);
-  getchar();
-  printf("%s\n", multiquation->equation.nameEqn);
-  getchar();
 
   //---------------------------------------------------------------------------
   // Create reduced model calculation for states
@@ -652,9 +647,6 @@ void createInitialConditions_ST(yk_PrimalSolver *ykflow, Cluster *primal,
 
   MatDestroy(&sumS_MU);
   VecDestroy(&vecsnapshot);
-  VecView(*estimatedinitST, PETSC_VIEWER_STDOUT_SELF);
-  printf("way too far\n");
-  getchar();
   free(index);
   free(colvalues);
 }
