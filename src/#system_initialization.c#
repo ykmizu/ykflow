@@ -14,7 +14,7 @@ void createSystem(Universe equation, Galaxy *state){
   state->quad.n = 2*state->basis.p+1;      //Quadrature points
 
 
-  /* state->time.count = (state->time.t_f-state->time.t_0)/state->time.dt; //num */
+  state->time.count = (state->time.t_f-state->time.t_0)/state->time.dt; //num
   createMesh(&state->space);
   assignBasisQuad(state); //Establish the basis functions and quadrature point
   initializeStates(equation, state);
@@ -25,8 +25,6 @@ void createSystem(Universe equation, Galaxy *state){
 void copySystem(Universe equation, Galaxy *state, Galaxy *stateCopy){
   stateCopy->quad.n = state->quad.n;
   stateCopy->time.count = state->time.count;
-  stateCopy->time.t_f = state->time.t_f;
-  stateCopy->time.t_0 = state->time.t_0;
   copyMesh(&state->space, &stateCopy->space);
   assignBasisQuad(stateCopy);
   initializeStates(equation, stateCopy);

@@ -8,7 +8,12 @@ Mat * yk_createSnapshotState(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   //------------------------------------//-------------------------------------
   int i, j, k, p;                       //initialization for iteration
   int snapshot_i;                       //state to be included in snapshot
-  int snapshotCount = primal->self->time.count; //256
+  /* int snapshotCount = primal->self->time.count; //256 */
+  /* int snapshotCount = (primal->self->time.t_f-primal->self->time.t_0)/ */
+  /*   primal->self->time.dt; */
+  /* int snapshotCount = ceil(((primal->self->time.t_f-primal->self->time.t_0)*10)/ */
+  /*                          (primal->self->time.dt*10)); */
+  int snapshotCount = primal->self->time.count;
   int totalParamSnapshot = snapshotCount*reduced->numParamSet;
   PetscInt index_i;
   PetscScalar *state_i =                //state array to add to snapshot matrix
@@ -23,7 +28,8 @@ Mat * yk_createSnapshotState(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   for (i=0; i<primal->self->systemSize; i++)
     temp[i] = i;
   PetscMalloc1(reduced->numParamSet, &snapshot_mu);
-  //  Mat *snapshot_mu = (Mat *) malloc (reduced->numParamSet*sizeof(Mat));
+  int timeNode0 = primal->self->time.t_0/primal->self->time.dt;
+ //  Mat *snapshot_mu = (Mat *) malloc (reduced->numParamSet*sizeof(Mat));
   //---------------------------------------------------------------------------
   // Initialization
   //---------------------------------------------------------------------------
@@ -49,11 +55,11 @@ Mat * yk_createSnapshotState(yk_PrimalSolver *ykflow, Multiverse *multiquation,
     chdir(fomBuffer);
     getcwd(cwd, sizeof(cwd));
     //Read the state solutions for the initial time in that directory
-    ks_readSolution(multiquation->equation, primal->self, 0);
+    ks_readSolution(multiquation->equation, primal->self, timeNode0);
     array2Data(multiquation->equation, primal->self, state_0);
     //Add data to the Petsc Mat Type
     for (i=1; i<snapshotCount+1; i++){      //begin creating snapshot matrix
-      ks_readSolution(multiquation->equation, primal->self, i);
+      ks_readSolution(multiquation->equation, primal->self, timeNode0+i);
       array2Data(multiquation->equation, primal->self, state_i);
       //Take away the initial conditions from the states
       for (j=0; j<primal->self->systemSize; j++)
@@ -95,13 +101,18 @@ void yk_createTemporalSnapshotState(yk_PrimalSolver *ykflow,
   Vec state_i;
   Vec phi;
   PetscScalar val;
-  PetscInt row=primal->self->systemSize, col=primal->self->time.count;
+  PetscInt row=primal->self->systemSize;
+  //Number of colum.ns in that snapshot matrix basically
+  int col = primal->self->time.count;
+  /* int col = ceil(((primal->self->time.t_f-primal->self->time.t_0)*10)/ */
+  /*                          (primal->self->time.dt*10)); */
+/* PetscInt col = (primal->self->time.t_f-primal->self->time.t_0)/ */
+  /*   primal->self->time.dt; */
+  /* PetscInt col=primal->self->time.count; */
   char cwd[1024];
   char fomBuffer[50];
   PetscInt index_i;
   PetscInt snapshot_i;
-  int snapshotCount =                   //total number of snapshots in matrix
-    (floor(primal->self->time.count/snapshotStep)+1);
   Vec psi_p;
   PetscInt *rowIndex = (PetscInt *) malloc (row*sizeof(PetscInt));
   PetscInt *colIndex = (PetscInt *) malloc (col*sizeof(PetscInt));
@@ -109,13 +120,14 @@ void yk_createTemporalSnapshotState(yk_PrimalSolver *ykflow,
     rowIndex[i] = i;
   for (i=0; i<col; i++)
     colIndex[i] = i;
+  PetscInt rbasisrow, rbasiscol;
+  MatGetSize(reduced->rOBState, &row, &rbasiscol);
   //---------------------------------------------------------------------------
   // Initialization
   //---------------------------------------------------------------------------
-  for (i=0; i<reduced->nBasisFuncs; i++){
+  for (i=0; i<rbasiscol; i++){
     MatCreate(PETSC_COMM_SELF, &snapshot_phi[i]);//create snapshot matrix
-    MatSetSizes(snapshot_phi[i], primal->self->time.count,
-		reduced->numParamSet, primal->self->time.count,
+    MatSetSizes(snapshot_phi[i], col, reduced->numParamSet, col,
 		reduced->numParamSet);
     MatSetType(snapshot_phi[i], MATSEQDENSE);        //set snapshot matrix type
     MatSetUp(snapshot_phi[i]);
@@ -124,12 +136,12 @@ void yk_createTemporalSnapshotState(yk_PrimalSolver *ykflow,
   VecSetSizes(phi, primal->self->systemSize, primal->self->systemSize);
   VecSetType(phi, VECSEQ);
   VecCreate(PETSC_COMM_SELF, &psi_p);
-  VecSetSizes(psi_p, primal->self->time.count, primal->self->time.count);
+  VecSetSizes(psi_p, col, col);
   VecSetType(psi_p, VECSEQ);
   //---------------------------------------------------------------------------
   // Implementation
   //---------------------------------------------------------------------------
-  for (j = 0; j<reduced->nBasisFuncs; j++){
+  for (j = 0; j<rbasiscol; j++){
     ks_MatCol2Vec(reduced->rOBState, row, rowIndex, phi, j, INSERT_VALUES);
     for (p=0; p<reduced->numParamSet; p++){
       MatMultTranspose(s_mu[p], phi, psi_p);
@@ -183,9 +195,9 @@ void yk_createTemporalSnapshotState(yk_PrimalSolver *ykflow,
 }
 
 void yk_properOrthogonalDecomposeGroup(Mat *snapshot, int numSnapshots,
-				       int systemSize,
-				       PetscInt *index, PetscInt numSingularValues,
-				       Mat *A){
+				       int systemSize, PetscInt *index,
+				       PetscInt *numSingularValues,
+				       PetscScalar engyValues, Mat *A){
   int i;
   /* for (i=0; i<numSnapshots; i++){ */
   /*   MatCreate(PETSC_COMM_SELF, &A[i]);       //Set up the Matrix for POD */
@@ -196,14 +208,15 @@ void yk_properOrthogonalDecomposeGroup(Mat *snapshot, int numSnapshots,
   /* } */
   for (i=0; i<numSnapshots; i++){
     yk_properOrthogonalDecompose(&snapshot[i], systemSize, index,
-				 numSingularValues, &A[i]);
+				 numSingularValues, engyValues, &A[i]);
   }
 }
 
 
 void yk_properOrthogonalDecompose(Mat *snapshot, int systemSize,
 				  PetscInt *index,
-				  PetscInt numSingularValues, Mat *A){
+				  PetscInt *numSingularValues,
+				  PetscScalar engyValues, Mat *A){
   //------------------------------------//-------------------------------------
   // Variables here                     // Comments section
   //------------------------------------//-------------------------------------
@@ -211,15 +224,17 @@ void yk_properOrthogonalDecompose(Mat *snapshot, int systemSize,
   PetscReal sigma;                      //eigenvalues
   Vec singular;                         //singular vectors rotation
   SVD svd;       //create svd object
+  PetscInt nsv;
+  PetscInt nconv;
+  int flag = 0;
+  double denomE = 0;
+  double Etotal = 0;
+  double EtotalPercent = 0;
+  PetscInt count = 0;
   //---------------------------------------------------------------------------
   // Initialization
   //---------------------------------------------------------------------------
-  MatCreate(PETSC_COMM_SELF, A);       //Set up the Matrix for POD
-  MatSetSizes(*A, systemSize, numSingularValues, systemSize, numSingularValues);
-  MatSetType(*A, MATSEQDENSE);
-  MatSetUp(*A);
-
-  VecCreate(PETSC_COMM_SELF, &singular);//Set up the singular vector
+  VecCreate(PETSC_COMM_SELF, &singular);//Set up the singular vector, U
   VecSetSizes(singular, systemSize, systemSize);
   VecSetType(singular, VECSEQ);
   //---------------------------------------------------------------------------
@@ -228,21 +243,44 @@ void yk_properOrthogonalDecompose(Mat *snapshot, int systemSize,
   //---------------------------------------------------------------------------
   // Create the Singular Value solver and set various options and solve
   //---------------------------------------------------------------------------
-
   SVDCreate(PETSC_COMM_SELF, &svd);
   SVDSetOperator(svd, *snapshot);
   SVDSetFromOptions(svd);
-  SVDSetDimensions(svd, numSingularValues, PETSC_DEFAULT, PETSC_DEFAULT);
   SVDSolve(svd);
+  SVDGetDimensions(svd,&nsv,NULL,NULL);
+  SVDGetConverged(svd,&nconv);
 
-  for (i=0; i<numSingularValues; i++){
+  //---------------------------------------------------------------------------
+  // If nBasis is undetermined, than calculate witht he energy desire thing
+  //---------------------------------------------------------------------------
+  if (engyValues != 0 && *numSingularValues == 0){
+    for (i=0; i<nconv; i++){
+      SVDGetSingularTriplet(svd, i, &sigma, NULL, NULL);
+      denomE +=sigma*sigma;
+    }
+    while (EtotalPercent < engyValues){
+      SVDGetSingularTriplet(svd, *numSingularValues, &sigma, singular, NULL);
+      Etotal += (sigma*sigma);
+      EtotalPercent = Etotal/denomE;
+      count++;
+    }
+  }
+  //---------------------------------------------------------------------------
+  // Create Basis Matrix here
+  //---------------------------------------------------------------------------
+  MatCreate(PETSC_COMM_SELF, A);       //Set up the Matrix for POD
+  MatSetSizes(*A, systemSize, count, systemSize, count);
+  MatSetType(*A, MATSEQDENSE);
+  MatSetUp(*A);
+  for (i=0; i<count; i++){
     SVDGetSingularTriplet(svd, i, &sigma, singular, NULL); //extract rotation
     ks_Vec2MatCol(*A, systemSize, index, i, singular, INSERT_VALUES);
   }
+
   MatAssemblyBegin(*A, MAT_FINAL_ASSEMBLY);
   MatAssemblyEnd(*A, MAT_FINAL_ASSEMBLY);
   //---------------------------------------------------------------------------
-  // Termination
+  // Clean up
   //---------------------------------------------------------------------------
   SVDDestroy(&svd);
   VecDestroy(&singular);

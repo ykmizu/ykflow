@@ -11,6 +11,7 @@ void ks_copyUtype(Galaxy *U, Galaxy *Ucopy){
   Ucopy->time.t_0 = U->time.t_0;
   Ucopy->time.t_f = U->time.t_f;
   Ucopy->time.count = U->time.count;
+  /* Ucopy->time.count_wi = U->time.count_wi; */
   Ucopy->space.elem.count = U->space.elem.count;
   Ucopy->space.node.count = U->space.node.count;
   Ucopy->space.dx = U->space.dx;
@@ -19,7 +20,7 @@ void ks_copyUtype(Galaxy *U, Galaxy *Ucopy){
   Ucopy->basis.p = U->basis.p;
   Ucopy->basis.nodes = U->basis.nodes;
   Ucopy->quad.n = U->quad.n;
-  
+
 }
 
 void ks_copySolutions(Universe equation, Galaxy *U, Galaxy *Ucopy){
@@ -34,6 +35,5 @@ void ks_setSolutionZero(Universe equation, Galaxy *U){
   int i, j;
   for (i=0; i<equation.numStates; i++)
     for (j=0; j<U->space.node.count; j++)
-      U->solution[i].array[j] = 0;    
+      U->solution[i].array[j] = 0;
 }
-

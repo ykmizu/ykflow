@@ -23,7 +23,7 @@ void initArrayInt(intArray *a, int size){
     a->array[i]=0;
   }
   a->count = size;
-} 
+}
 
 void initArray2D(Array2D *a, int m, int n){
   int i, j;
@@ -46,6 +46,8 @@ void initIs_it(Is_it *reduced){
   reduced->delJ_psi = 0;
   reduced->delJ_dpsi = 0;
   reduced->delJ_dpsi_H1 = 0;
+  reduced->eBasisSpace = 0;
+  reduced->eBasisTime = 0;
   reduced->tradDelJ = 0;
   reduced->dss = 0;
   reduced->hrom = 0;
@@ -56,6 +58,7 @@ void initIs_it(Is_it *reduced){
   reduced->innerStart = 0;
   reduced->nSampleNodes = 0;
   reduced->nBasisFuncs = 0;
+  reduced->nBasisTime = 0;
   reduced->nBasisFuncsRJ = 0;
   reduced->nSnapshotsRJ = 0;
   reduced->outerStart = 0;

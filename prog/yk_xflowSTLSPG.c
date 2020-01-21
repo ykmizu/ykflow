@@ -618,119 +618,9 @@ void yk_xflow_totalResidual(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   /* 				    UG, &Rewind); */
   xf_Call(xf_DestroySolverData(SolverData));
   xf_Call(xf_DestroyDataSet(DataSet));
+  xf_Release((void *) UGi);
 }
 
-/* void yk_xflow_totalResidual(yk_PrimalSolver *ykflow, Multiverse *multiquation, */
-/*                             Cluster *primal, Vec residual, Mat Jacobian, */
-/*                             Is_it *reduced, int timeSolveNum){ */
-/*   //------------------------------------//------------------------------------- */
-/*   // Variables here                     // Comments section */
-/*   //------------------------------------//------------------------------------- */
-/*   int ierr; */
-/*   enum xfe_Bool Found; */
-/*   yk_Xflow *xflow = (yk_Xflow *) ykflow->solver; */
-/*   xf_JacobianMatrix *dRdU; */
-/*   xf_VectorGroup *RG = NULL; */
-/*   xf_VectorGroup *UGi[2]; */
-/*   xf_SolverData *SolverData=NULL; */
-/*   Galaxy *postTime = NULL; */
-/*   Vec primalReducedVec; */
-/*   Vec primalFullVec; */
-/*   Cluster *temp = (Cluster *) malloc (sizeof(Cluster)); */
-/*   temp->self = (Galaxy *) malloc (sizeof(Galaxy)); */
-/*   Universe _equation = multiquation->equation; */
-/*   Universe _equationReduced = multiquation->equationReduced; */
-/*   //  reduced->hrom = 0; */
-/*   //need to go in here and modify it for the hyper reduced case */
-/*   //--------------------------------------------------------------------------- */
-/*   // Implementation */
-/*   //--------------------------------------------------------------------------- */
-/*   //--------------------------------------------------------------------------- */
-/*   // Set up the State temp value to be used in the Residual */
-/*   //-------------------------------------------------------------------------- */
-/*   //Should probably make this UG_h part more... broad */
-/*   xf_Call(xf_FindSimilarVectorGroup(xflow->All, xflow->UG, "state1", */
-/*                                      xfe_True, xfe_True, NULL, &UGi[0], NULL)); */
-/*   xf_Call(xf_FindSimilarVectorGroup(xflow->All, xflow->UG, "state2", */
-/*                                      xfe_True, xfe_True, NULL, &UGi[1], NULL)); */
-/*   xf_Call(xf_FindSimilarVectorGroup(xflow->All, xflow->UG, "RG", */
-/*                                      xfe_True, xfe_True, NULL, &RG, NULL));     \ */
-/*   if (Jacobian != NULL) */
-/*     xf_Call(xf_FindJacobianMatrix(xflow->All, xflow->All->DataSet, xflow->UG, */
-/*                                   NULL, xfe_True, NULL, NULL, &dRdU, &Found)); */
-/*   else */
-/*     dRdU = NULL; */
-/*   //create/allocate SOlverData */
-/*   xf_Call(xf_CreateSolverData(xflow->All, &SolverData)); */
-/*   SolverData->DoProcessResidual = xfe_False; // do not process residual */
-/*   SolverData->UseArtificialDt = xfe_False; */
-/*   SolverData->c = 0.; */
-/*   //--------------------------------------------------------------------------- */
-/*   //Create a temporary Cluster called temp to save timenode - 1 values */
-/*   //--------------------------------------------------------------------------- */
-/*   //Left side of the element */
-/*   if (reduced->hrom == 0){ */
-/*     postTime = primal->self; */
-/*   }else if (reduced->hrom == 1){ */
-/*     VecCreate(PETSC_COMM_SELF, &primalReducedVec); */
-/*     VecSetSizes(primalReducedVec, reduced->nBasisFuncs, reduced->nBasisFuncs); */
-/*     VecSetType(primalReducedVec, VECSEQ); */
-
-/*     VecCreate(PETSC_COMM_SELF, &primalFullVec); */
-/*     VecSetSizes(primalFullVec, primal->stateFull->systemSize, */
-/*                 primal->stateFull->systemSize); */
-/*     VecSetType(primalFullVec, VECSEQ); */
-
-/*     primal->stateFull->time.node = primal->self->time.node; */
-/*     array2Vec(_equationReduced, primal->reduced, primalReducedVec); */
-/*     MatMult(reduced->rOBState, primalReducedVec, primalFullVec); */
-/*     vec2Array(_equation, primal->stateFull, primalFullVec); */
-/*     postTime = primal->stateFull; */
-/*   } */
-/*     //remeber that stateFull is same size as self for hrom == 0 */
-/*   ks_copyUtype(postTime, temp->self); */
-/*   copySystem(_equation, postTime, temp->self); */
-/*   temp->self->time.node = postTime->time.node - 1; */
-/*   strcpy(temp->clusterId, primal->clusterId); */
-/*   ks_readSolution(_equation, temp->self, temp->self->time.node); */
-/*   yk_array2VectorGroup(UGi[0], temp->self); */
-/*   yk_array2VectorGroup(UGi[1], postTime); */
-
-/*   //WAIT I CAN REWRITE THIS BEETER */
-/*   //--------------------------------------------------------------------------- */
-/*   // Residual and Jacobian */
-/*   //--------------------------------------------------------------------------- */
-/*   xf_Call(xf_SetKeyValueReal(xflow->All->Param->KeyValue, "Time", */
-/*                              postTime->time.node*postTime->time.dt)); */
-/*   //Calculate the Spatial Residual */
-/*   SolverData->c = 3.0; */
-/*   printf("%g\n", SolverData->c); */
-/*   printf("cat cat may die\n"); */
-/*   getchar(); */
-/*   xf_Call(xf_CalculateResidual(xflow->All, UGi[1], RG, dRdU, SolverData)); */
-/*   //Temporary calculate for du u(n+1)-u(n) for now.... since eval acting weird */
-/*   /\* xf_VectorGroupMultSet(UGi[0], -1.0, xfe_Add, UGi[1]); *\/ */
-/*   /\* //Calculate the total Unsteady Residual by adding the Mass Matrix Mdu/dt+R *\/ */
-/*   /\* xf_AddMassMatrixGroup(xflow->All, 1/postTime->time.dt, NULL, UGi[1], RG, *\/ */
-/*   /\*                       dRdU, SolverData); *\/ */
-/*   //Convert to Petsc Vec format (Residual) */
-/*   yk_vector2VecGroup(xflow->All, RG, primal->self, residual, reduced); */
-/*   //yk_vector2VecGroup(primalSolverObj, RG, residual, reduced); */
-/*   //Convert to Petsc Mat format (Jacobian) */
-/*   if (Jacobian != NULL) */
-/*     yk_matrix2D2MatGroup(xflow->All, dRdU, primal->self, Jacobian, reduced); */
-/*     //--------------------------------------------------------------------------- */
-/*   // Jacobian */
-/*   //--------------------------------------------------------------------------- */
-/*   xf_Call(xf_DestroySolverData(SolverData)); */
-/*   destroySystem(_equation, temp->self); */
-/*   if (reduced->hrom == 1){ */
-/*     VecDestroy(&primalReducedVec); */
-/*     VecDestroy(&primalFullVec); */
-/*   } */
-/*   free(temp->self); */
-/*   free(temp); */
-/* } */
 //-----------------------------------------------------------------------------
 // Convert xflow text file to ykflow state file
 //-----------------------------------------------------------------------------
@@ -750,11 +640,20 @@ void yk_xfData2Dat(Galaxy *gObj, xf_VectorGroup *UG, char *jobFile){
   char outFile[xf_MAXSTRLEN];
   char numFilesString[xf_MAXSTRLEN];
   char dataString[xf_MAXSTRLEN];
+  int leftNode = gObj->time.t_0/gObj->time.dt+1;
+  if (leftNode == 1){
+    leftNode = 0;
+  }
 
+  int rightNode = gObj->time.t_f/gObj->time.dt;
+  //CHNAGE THIS CHANGE THIS THAT 0 in the STAT EINPUT ARGV THINKG
+  char files[xf_MAXSTRLEN];
+  sprintf(files, " %d 1 ", leftNode);
   sprintf(stateInput, "%s_U", jobFile);
-  sprintf(numFilesString, "%d", numFiles);
+  sprintf(numFilesString, "%d", rightNode);
   char * argv[] =  {"/home/yshimiz/xflow/bin/xf_Data2Text", " -inroot ",
-                    stateInput, " -batch", " 0 1 ",  numFilesString, NULL};
+                    stateInput, " -batch", files,  numFilesString, NULL};
+
   char outputS[200];
   char * env[] = {NULL};
   FILE *dataFile;
@@ -763,13 +662,10 @@ void yk_xfData2Dat(Galaxy *gObj, xf_VectorGroup *UG, char *jobFile){
   //---------------------------------------------------------------------------
   // Implementation
   //---------------------------------------------------------------------------
-  printf("%s\n", argv[0]);
-
   sprintf(outputS, "%s", argv[0]);
 
   for (i=1; i<6; i++)
     strcat(outputS, argv[i]);
-  printf("%s\n", outputS);
   numStates = UG->Vector[0]->StateRank;
   system(outputS);
   /* if (pid == -1){ //Error */
@@ -864,9 +760,19 @@ void yk_Init(yk_PrimalSolver *ykflow, Multiverse *multiquation, Cluster *fom,
   //---------------------------------------------------------------------------
   // Reduced mutliquation equation parameters
   //---------------------------------------------------------------------------
+  /* reduced->nBasisFuncs = (PetscInt *) malloc (reduced->nTimeSegs* */
+  /* 					      sizeof(PetscInt)); */
+  /* reduced->nBasisTimes = (PetscInt *) malloc (reduced->nTimeSegs* */
+  /* 					      sizeof(PetscInt)); */
+
+  /* for (i=0l i<reduced->nTimeSegs; i++){ */
+  /*   reduced->nBasisFuncs[i] = 0; */
+  /*   reduced->nBasisTimes[i] = 0; */
+  /* } */
   sprintf(eqnReduced, "%s%s", jobFile, "Reduced");
+
   strcpy(multiquation->equationReduced.nameEqn, eqnReduced);
-  multiquation->equationReduced.numStates = reduced->nBasisFuncs;
+  /* multiquation->equationReduced.numStates = reduced->nBasisFuncs; */
   //---------------------------------------------------------------------------
   // Define the Cluster properties here
   //---------------------------------------------------------------------------
@@ -886,7 +792,7 @@ void yk_Init(yk_PrimalSolver *ykflow, Multiverse *multiquation, Cluster *fom,
   fom->self->time.globalT_0 = fom->self->time.t_0;
 
   fom->self->time.dt = (fom->self->time.t_f-fom->self->time.t_0)/nTimeStep;
-  fom->self->time.count = nTimeStep+1;
+  fom->self->time.count = nTimeStep;
   //---------------------------------------------------------------------------
   //Set the total number of elements FIne
   //---------------------------------------------------------------------------
@@ -1118,7 +1024,6 @@ int yk_forwardSimulation(yk_Xflow *xflow){
   xf_Call(xf_GetKeyValueReal(xflow->All->Param->KeyValue, "Time", &Time0));
   xf_Call(xf_GetKeyValue(xflow->All->Param->KeyValue, "SavePrefix", SavePrefix));
   xf_Call(xf_GetKeyValue(xflow->All->Param->KeyValue, "LogOutput", LogOutput));
-  printf("%s push push\n", LogOutput);
   xf_Call(xf_FindOrCreatePrimalState(xflow->All, DoRestart, NULL, &xflow->UG));
   /* // Create the Time History */
   xf_Call(xf_CreateUniformTimeHistData(xflow->All, LogOutput, &xflow->TimeHistData));
@@ -1143,30 +1048,35 @@ void yk_print2xflowTxt(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   int i;
   int ierr;
   yk_Xflow *xflow = (yk_Xflow *) ykflow->solver;
-  xf_VectorGroup *UG_approx;\
+  xf_VectorGroup *UG_approx;
   enum xfe_Bool DoRestart;
   xf_DataSet *DataSet = NULL;
   char Title[xf_MAXSTRLEN];
   char SavePrefix[xf_MAXSTRLEN];
   char temp[xf_MAXSTRLEN];
   char OutputFile[xf_MAXSTRLEN];
+  xf_Data *D;
+  int leftNode = sol->time.t_0/sol->time.dt;
+  int rightNode = sol->time.t_f/sol->time.dt;
+
   //---------------------------------------------------------------------------
   //
   //---------------------------------------------------------------------------
   xf_Call(xf_GetKeyValue(xflow->All->Param->KeyValue, "SavePrefix",
 			 SavePrefix));
-  xf_Call(xf_CreateDataSet(&DataSet));
-  xf_Call(xf_DataSetAdd(DataSet, "State", xfe_VectorGroup, xfe_True, (void *)
-			xflow->UG, NULL));
   sprintf(temp, "%s_ROM_Approximate_U", SavePrefix);
-  for (i=0; i<sol->time.count+1; i++){
+  for (i=leftNode; i<rightNode+1; i++){
+    xf_Call(xf_CreateDataSet(&DataSet));
+    xf_Call(xf_DataSetAdd(DataSet, "State", xfe_VectorGroup, xfe_True, (void *)
+			  xflow->UG, &D));
     ks_readSolution(multiquation->equation, sol, i);
     yk_array2VectorGroup(xflow->UG, sol);
     sprintf(Title, "%s%d.data", temp, i);
     xf_Call(xf_WriteDataSetBinary(xflow->All->Mesh, DataSet, NULL, Title));
+    D->Data= NULL;
     sprintf(OutputFile, "%s%d.xfa", temp, i);
     xf_Call(xf_WriteAllBinary(xflow->All, OutputFile));
-
+    xf_Call(xf_DestroyDataSet(DataSet));
   }
 
   sprintf(temp, "%s_ROM_Approximate", SavePrefix);
@@ -1179,6 +1089,7 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   //------------------------------------//-------------------------------------
   // Variables here                     // Comments section
   //------------------------------------//-------------------------------------
+  int i;                                //initialization for iteration
   //check this and init about this
   yk_Xflow *xflow  = (yk_Xflow *) ykflow->solver;
   /* //--------------------------------------------------------------------------- */
@@ -1198,16 +1109,38 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   /* printf("----------------------------------------------------------------\n"); */
   /* yk_createHyperReducedOrderModel(ykflow, multiquation, fom, hrom, reduced); */
   /* yk_runHyperReducedOrderModel(ykflow, multiquation, fom, hrom, reduced); */
-  //---------------------------------------------------------------------------  // Space-Time Reduced-Order Modeling
+
+  //---------------------------------------------------------------------------
+  // Space-Time Reduced-Order Modeling
   //---------------------------------------------------------------------------
   printf("----------------------------------------------------------------\n");
-  printf("|          Space-Time Hyper-Reduced-Order Modeling             |\n");
+  printf("|      Windowed Space-Time Hyper-Reduced-Order Modeling        |\n");
   printf("----------------------------------------------------------------\n");
-  yk_createReducedOrderModel_ST(ykflow, multiquation, fom, rom, reduced);
-  yk_runReducedOrderModel_ST(ykflow, multiquation, fom, rom, reduced);
-  yk_print2xflowTxt(ykflow, multiquation, rom->self);
-  yk_destroyReducedOrderModel_ST(ykflow, multiquation, fom, rom, reduced);
+  /* With windowed space-time, we treat each window as its own entity. Each window will solve a residual minimization problem. Instead of doing what I did in the pymortestbed code, I'm going to keep the routine in the original createROM and perform script as much as possible, the same. Treat it more like a wrapper code at the moment. */
+  int tElemPerWindow = fom->self->time.count/reduced->nTimeSegs;
+  for (i=0; i<reduced->nTimeSegs; i++){ //Number of time windows
+    printf("----------------------------------------------------------------\n");
+    printf("|                       W i n d o w  %d                         |\n", i);
+    printf("----------------------------------------------------------------\n");
+/* reduced->win_i=i; */
+    /* reduced->w_i = i;  //Set which window we are currently on */
+    //Need to redefine the temporal aspects of the problem for each time window
+    fom->self->time.t_0 = i*tElemPerWindow*fom->self->time.dt;
+    fom->self->time.t_f = (i+1)*tElemPerWindow*fom->self->time.dt;
+
+    // define the number of tmeporal elements in each time window
+    fom->self->time.count = tElemPerWindow;
+    yk_createReducedOrderModel_ST(ykflow, multiquation, fom, rom, reduced);
+    yk_runReducedOrderModel_ST(ykflow, multiquation, fom, rom, reduced);
+    /* yk_storeBasisInfoWindow(i, reduced); */
+    yk_print2xflowTxt(ykflow, multiquation, rom->self);
+
+    yk_destroyReducedOrderModel_ST(ykflow, multiquation, fom, rom, reduced);
+  }
+
 }
+
+
 
 int main(int argc, char** argv) {
 //------------------------------------//-------------------------------------
@@ -1242,13 +1175,19 @@ int main(int argc, char** argv) {
   ierr = xf_ParseArg(ArgIn, argc, argv, xflow->KeyValueArg);
   if (ierr == xf_FORCE_QUIT) return xf_OK;
   if (ierr != xf_OK) return xf_Error(ierr);
-  /*  //--------------------------------------------------------------------------- */
- /*  // Search for Attractor/Trajectory Burn Time using xflow only */
- /*  //--------------------------------------------------------------------------- */
+  //---------------------------------------------------------------------------
+  // Run the Forward Order Model (FOM) on xflow
+  //---------------------------------------------------------------------------
   yk_forwardSimulation(xflow);
- /*  printf("paris\n"); */
 
+  //---------------------------------------------------------------------------
+  // Initialization on ykflow
+  //---------------------------------------------------------------------------
   yk_Init(ykflow, multiquation, fom, reduced);
+
+  //---------------------------------------------------------------------------
+  // Run Model Reduction Routines/ WST-LSPG
+  //---------------------------------------------------------------------------
   yk_RunErrorEstChaos(ykflow, multiquation, fom, rom, hrom, argv, reduced);
   //---------------------------------------------------------------------------
   // Destroy everything
@@ -1265,6 +1204,7 @@ int main(int argc, char** argv) {
 
   xf_Call(xf_DestroyKeyValue(xflow->KeyValueArg));
  /*  /\* free(rom->self); *\/ */
+  free(reduced->win_i);
   free(reduced->params);
   free(reduced->paramsL);
   free(reduced->paramsH);
@@ -1280,4 +1220,5 @@ int main(int argc, char** argv) {
   SlepcFinalize();
 
   /* return 0; */
+
 }

@@ -158,12 +158,20 @@ void read_input(int argc, char *argv[], Universe eqn, Galaxy* u_fine,
           u_fine->time_method = atoi(lines_temp);
         }else if (strcmp(lines, "numTimeSegments") == 0){
           reduced->nTimeSegs = atoi(lines_temp);
+	  reduced->win_i = (PerWindow *) malloc
+	    (reduced->nTimeSegs*sizeof(PerWindow));
+	}else if (strcmp(lines, "numSubSpacesPerWindow") == 0){
+	  reduced->nSubPWin = atoi(lines_temp);
         }else if (strcmp(lines, "dss") == 0){
           reduced->dss = atoi(lines_temp);
         }else if (strcmp(lines, "numBasisFunctions") == 0){
           reduced->nBasisFuncs = atoi(lines_temp);
 	}else if (strcmp(lines, "numBasisTime") == 0){
 	  reduced->nBasisTime = atoi(lines_temp);
+	}else if (strcmp(lines, "engyBasisFunctions") == 0){
+	  reduced->eBasisSpace = atof(lines_temp);
+	}else if (strcmp(lines, "engyBasisTime") == 0){
+	  reduced->eBasisTime = atof(lines_temp);
         }else if (strcmp(lines, "numSampleNodes") == 0){
           reduced->nSampleNodes = atoi(lines_temp);
         }else if (strcmp(lines, "numBasisFunctionsRJ") == 0){
