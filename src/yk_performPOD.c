@@ -1,5 +1,7 @@
 #include "yk_performPOD.h"
 
+//check check it worked
+
 Mat * yk_createSnapshotState(yk_PrimalSolver *ykflow, Multiverse *multiquation,
 			    Cluster *primal, Mat *snapshot, int snapshotStep,
 			    Is_it *reduced){
