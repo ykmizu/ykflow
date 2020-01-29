@@ -2,6 +2,68 @@
 #include "tools.h"
 
 
+
+/* void moorePenrosePseudoInv(Mat A, int rowSize, int colSize, Mat *Aplus){ */
+/*   int i, j; */
+/*   PetscInt *rowIndex = (PetscInt *) malloc (rowSize*sizeof(PetscInt)); */
+/*   PetscInt *colIndex = (PetscInt *) malloc (colSize*sizeof(PetscInt)); */
+/*   PetscScalar *singular_i = (PetscScalar *)malloc(rowSize*sizeof(PetscScalar)); */
+/*   Vec singular; */
+/*   Vec decomposition; */
+/*   Vec decomptemp; */
+/*   SVD svd; */
+/*   PetscReal sigma; */
+/*   PetscInt wtf; */
+/*   //---------------------------------------------------------------------------- */
+/*   //  I n i t i a l i z a t i o n */
+/*   //---------------------------------------------------------------------------- */
+/*   for (i=0; i<rowSize; i++) */
+/*     rowIndex[i] = i; */
+/*   for (i=0; i<colSize; i++) */
+/*     colIndex[i] = i; */
+/*   VecCreateSeq(PETSC_COMM_SELF, rowSize, &singular); */
+/*   VecCreateSeq(PETSC_COMM_SELF, colSize, &decomposition); */
+/*   VecCreateSeq(PETSC_COMM_SELF, colSize, &decomptemp); */
+/*   MatCreateSeqDense(PETSC_COMM_SELF, colSize, rowSize, NULL, Aplus); */
+/*   //--------------------------------------------------------------------------- */
+/*   // I m p l e m e n t a t i o n */
+/*   //--------------------------------------------------------------------------- */
+/*   //--------------------------------------------------------------------------- */
+/*   // Perform SVD */
+/*   //---------------------------------------------------------------------------      SVDCreate(PETSC_COMM_SELF, &svd); */
+/*   SVDSetOperator(svd, A); */
+/*   SVDSetFromOptions(svd); */
+/*   SVDSetDimensions(svd, colSize, */
+/*                    PETSC_DEFAULT, PETSC_DEFAULT); */
+/*   SVDSolve(svd); */
+/*   SVDGetConverged(svd, &wtf); */
+/*   for (i=0; i<wtf; i++){ //Iterate through the number of converged iteratio */
+/*     SVDGetSingularTriplet(svd, i, &sigma, singular, decomposition); */
+/*     sigma = 1.0/sigma; */
+/*     VecScale(decomposition, sigma); */
+/*     VecGetValues(singular, rowSize, rowIndex, singular_i); */
+/*     for (j=0; j<rowSize; j++){ */
+/*       VecCopy(decomposition, decomptemp); */
+/*       VecScale(decomptemp, singular_i[j]); */
+/*       ks_Vec2MatCol(*Aplus, colSize, colIndex, j, decomptemp, ADD_VALUES); */
+/*     } */
+/*   } */
+/*   MatAssemblyBegin(*Aplus, MAT_FINAL_ASSEMBLY); */
+/*   MatAssemblyEnd(*Aplus, MAT_FINAL_ASSEMBLY); */
+/*   //---------------------------------------------------------------------------- */
+/*   // T e r  m i n a t i o n */
+/*   //---------------------------------------------------------------------------- */
+/*   VecDestroy(&singular); */
+/*   VecDestroy(&decomposition); */
+/*   VecDestroy(&decomptemp); */
+/*   SVDDestroy(&svd); */
+/*   free(rowIndex); */
+/*   free(colIndex); */
+/*   free(singular_i); */
+
+/* } */
+
+
 void yk_kron(Mat A,  Vec B, double ***kron){
   PetscInt i, j, k; //initialization for iteration
 

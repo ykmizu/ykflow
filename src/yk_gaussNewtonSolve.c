@@ -42,6 +42,7 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   int nSTBasis = basis;
   int systemSize = primalApprox->self->systemSize;
   int st_systemSize = systemSize*primalApprox->self->time.count;
+
   PetscInt *nSTBasisIndex = (PetscInt *) malloc (nSTBasis*sizeof(PetscInt));
   for (i=0; i<nSTBasis; i++)
     nSTBasisIndex[i] = i;
@@ -89,9 +90,7 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   VecSetSizes(primalApproxVec_i, systemSize, systemSize);
   VecSetType(primalApproxVec_i, VECSEQ);
 
-
-
-  //dRdU
+ //dRdU
   MatCreate(comm, &dRdU);
   MatSetSizes(dRdU, PETSC_DECIDE, nSTBasis, st_systemSize, nSTBasis);
   MatSetBlockSizes(dRdU, systemSize, nSTBasis);
@@ -106,6 +105,14 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   MatSeqBAIJSetPreallocation(dRdUTemp, primalApprox->self->basis.nodes*
                              multiquation->equation.numStates,
                              ykflow->numElemCol, NULL);
+
+  /* MatCreate(PETSC_COMM_SELF, &dRdUTemp); */
+  /* MatSetSizes(dRdUTemp, meshSize, systemSize, meshSize, systemSize); */
+  /* MatSetType(dRdUTemp, MATSEQAIJ); */
+  /* MatSeqAIJSetPreallocation(dRdUTemp,  primalApprox->self->basis.nodes* */
+  /* 			    multiquation->equation.numStates* */
+  /* 			    ykflow->numElemCol, NULL); */
+
 
   PetscInt size;
   Mat C;
@@ -128,22 +135,26 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   //---------------------------------------------------------------------------
   // Implementation
   //---------------------------------------------------------------------------
-  //Rertrieve the initial conditions for the full order model solution
-  ks_readSolution(_equationReduced, primalApprox->reduced, 0);
-  array2Vec(_equationReduced, primalApprox->reduced, primalReducedVec);
 
-  //initial conditions (I don't think I need this
-  ks_readSolution(_equation, primalApprox->self, 0);
-  array2Vec(_equation, primalApprox->self, state_0);
+
   int flag = 0;
   PetscInt blockcount_i;
   Mat coefMat;
   int left_t_node = primalApprox->self->time.t_0/primalApprox->self->time.dt;
   int right_t_node = primalApprox->self->time.t_f/primalApprox->self->time.dt;
+
+
+
+  //Rertrieve the initial conditions for the full order model solution
+  ks_readSolution(_equationReduced, primalApprox->reduced, left_t_node);
+  array2Vec(_equationReduced, primalApprox->reduced, primalReducedVec);
+
+  //initial conditions (I don't think I need this
+  ks_readSolution(_equation, primalApprox->self, left_t_node);
+  array2Vec(_equation, primalApprox->self, state_0);
   /* /\* Mat *MatCoeff = (Mat *) malloc (2*sizeof(Mat));; //Allocated /Malloced in the *\/ following function: */
   /* printf("%d\n", nUnknownsElem); */
   /* printf("%d\n", systemSize); */
-
   MatCreate(PETSC_COMM_SELF, &coefMat);
   MatSetSizes(coefMat, systemSize, systemSize, systemSize,
   	      systemSize);
@@ -157,19 +168,19 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
 
   /* primalApprox->self->time.node = 1; */
   /* ykflow->findMassCoefBDF(ykflow, primalApprox->self, &MatCoeff, reduced); */
-
   /* primalApprox->self->time.node = 1; */
   ykflow->findMassCoefBDF(ykflow, primalApprox->self, &coefMat, reduced);
-  MatDuplicate(coefMat, MAT_COPY_VALUES, &coefMat1);
-  MatScale(coefMat1, -2/0.1);
 
-  MatDuplicate(coefMat, MAT_COPY_VALUES, &coefMat2);
-  MatScale(coefMat2, 0.5/0.1);
-  PetscReal val;
-  MatZeroEntries(C);
-  do{
-    //-------------------------------------------------------------------------
-    // Loop through each time to obtain the residual and Jacobian at tstep i
+   MatDuplicate(coefMat, MAT_COPY_VALUES, &coefMat1);
+   MatScale(coefMat1, -2/0.1);
+   //MatScale(coefMat1, -1/0.1);
+   MatDuplicate(coefMat, MAT_COPY_VALUES, &coefMat2);
+   MatScale(coefMat2, 0.5/0.1);
+   PetscReal val;
+   //  MatZeroEntries(C);
+   do{
+     //-------------------------------------------------------------------------
+     // Loop through each time to obtain the residual and Jacobian at tstep i
     //-------------------------------------------------------------------------
     //Calculate just the Pi*reducedstates part. Add in initial conditions in
     //for loop
@@ -183,7 +194,9 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
       //temp temp
 
       //Write to file
-
+      /* MatView(reduced->ST_rOBState_i[local_i-1], PETSC_VIEWER_STDOUT_SELF); */
+      /* printf("anymore\n"); */
+      /* getchar(); */
       MatMultAdd(reduced->ST_rOBState_i[local_i-1], primalReducedVec, state_0,
       		 primalApproxVec_i);
 
@@ -203,6 +216,8 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
       //-----------------------------------------------------------------------
       ykflow->Residual(ykflow, multiquation, primalApprox, residualTemp,
       		       dRdUTemp, reduced, innertimesolver);
+
+
       VecNorm(residualTemp, 2, &val);
 
       VecGetSize(residualTemp, &size);
@@ -216,9 +231,10 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
       // Jacobain manipulation
       //-----------------------------------------------------------------------
       start = clock();
-      MatMatMult(dRdUTemp, reduced->ST_rOBState_i[local_i-1], MAT_REUSE_MATRIX,
-      		 PETSC_DEFAULT, &C);
-
+      //Oh fuck
+      MatMatMultBAIJ(dRdUTemp, reduced->ST_rOBState_i[local_i-1], C);
+      /* MatMatMult(dRdUTemp, reduced->ST_rOBState_i[local_i-1], MAT_REUSE_MATRIX, */
+      /* 		 PETSC_DEFAULT, &C); */
       end = clock();
       cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
       MatGetValues(C, systemSize,  primalApprox->self->index, nSTBasis,
@@ -227,6 +243,7 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
       MatSetValuesBlocked(dRdU, 1, &blockcount_i,1, &we, cc,ADD_VALUES);
 
       if (local_i>1){
+
 	MatMatMultBAIJ(coefMat1, reduced->ST_rOBState_i[local_i-2], C);
       	MatGetValues(C, systemSize, primalApprox->self->index, nSTBasis,
       		     nSTBasisIndex, cc);
@@ -245,7 +262,7 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
     MatAssemblyBegin(dRdU, MAT_FINAL_ASSEMBLY);
     MatAssemblyEnd(dRdU, MAT_FINAL_ASSEMBLY);
 
-    /* MatView(dRdU, PETSC_VIEWER_STDOUT_SELF); */
+    /* MatViewdRdU, PETSC_VIEWER_STDOUT_SELF); */
     VecAssemblyBegin(st_residual);
     VecAssemblyEnd(st_residual);
     /*     if (reduced->hrom == 1){ */

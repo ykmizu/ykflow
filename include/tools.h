@@ -16,13 +16,14 @@
 #include "struct_def.h"
 #include <math.h>
 #include "petsc.h"
+#include "slepcsvd.h"
 //#include "ks_function.h"
 //#include "ks_copyUtype.h"
 #include "system_initialization.h"
 //#include "ks_copyUtype.h"
 #include <time.h>
 
-
+/* void moorePenrosePseudoInv(Mat A, int rowSize, int colSize, Mat *Aplus); */
 void yk_kron(Mat A,  Vec B, double ***kron);
 double dot(double* a, double*b, int size);
 void projection(Universe eqn, Vec U, Vec vp);

@@ -25,12 +25,11 @@ Mat * yk_createSnapshotState(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   Mat *snapshot_mu;
   PetscInt row, col;
   PetscInt *temp = (PetscInt *) malloc (primal->self->systemSize*sizeof(PetscInt));
-  for (i=0; i<primal->self->systemSize; i++){
+  for (i=0; i<primal->self->systemSize; i++)
     temp[i] = i;
-  }
   PetscMalloc1(reduced->numParamSet, &snapshot_mu);
   int timeNode0 = primal->self->time.t_0/primal->self->time.dt;
-   /* Mat *snapshot_mu = (Mat *) malloc (reduced->numParamSet*sizeof(Mat)); */
+ //  Mat *snapshot_mu = (Mat *) malloc (reduced->numParamSet*sizeof(Mat));
   //---------------------------------------------------------------------------
   // Initialization
   //---------------------------------------------------------------------------
@@ -250,6 +249,7 @@ void yk_properOrthogonalDecompose(Mat *snapshot, int systemSize,
   SVDSolve(svd);
   SVDGetDimensions(svd,&nsv,NULL,NULL);
   SVDGetConverged(svd,&nconv);
+
   //---------------------------------------------------------------------------
   // If nBasis is undetermined, than calculate witht he energy desire thing
   //---------------------------------------------------------------------------
@@ -259,8 +259,7 @@ void yk_properOrthogonalDecompose(Mat *snapshot, int systemSize,
       denomE +=sigma*sigma;
     }
     while (EtotalPercent < engyValues){
-
-      SVDGetSingularTriplet(svd, count, &sigma, singular, NULL);
+      SVDGetSingularTriplet(svd, *numSingularValues, &sigma, singular, NULL);
       Etotal += (sigma*sigma);
       EtotalPercent = Etotal/denomE;
       count++;
@@ -288,7 +287,8 @@ void yk_properOrthogonalDecompose(Mat *snapshot, int systemSize,
 }
 
 
-void yk_createSpaceTimeBasis(Mat *spacebasis, Mat *timebasis, Mat *spaceTime){
+void yk_createSpaceTimeBasis(Mat *spacebasis, Mat *timebasis, Mat *spaceTime,
+			     Mat *spaceTime_i){
 
   /* yk_kron(&st_basis_temp, &reduced->rOBState, reduced->nBasisFuncs);   */
   Vec phi;
@@ -318,18 +318,16 @@ void yk_createSpaceTimeBasis(Mat *spacebasis, Mat *timebasis, Mat *spaceTime){
   VecCreate(PETSC_COMM_SELF, &phi);
   VecSetSizes(phi, row, row);
   VecSetType(phi, VECSEQ);
-
-
   MatCreate(PETSC_COMM_SELF, spaceTime);       //Set up the Matrix for POD
   MatSetSizes(*spaceTime, row*rowTime, col*colTime, row*rowTime, col*colTime);
   MatSetType(*spaceTime, MATSEQDENSE);
   MatSetUp(*spaceTime);
-  /* for (i=0; i<rowTime; i++){ */
-  /*   MatCreate(PETSC_COMM_SELF, &spaceTime_i[i]); */
-  /*   MatSetSizes(spaceTime_i[i], row, col*colTime, row, col*colTime); */
-  /*   MatSetType(spaceTime_i[i], MATSEQDENSE); */
-  /*   MatSetUp(spaceTime_i[i]); */
-  /* } */
+  for (i=0; i<rowTime; i++){
+    MatCreate(PETSC_COMM_SELF, &spaceTime_i[i]);
+    MatSetSizes(spaceTime_i[i], row, col*colTime, row, col*colTime);
+    MatSetType(spaceTime_i[i], MATSEQDENSE);
+    MatSetUp(spaceTime_i[i]);
+  }
   //---------------------------------------------------------------------------
   // Implementation
   //---------------------------------------------------------------------------
@@ -371,184 +369,6 @@ void yk_createSpaceTimeBasis(Mat *spacebasis, Mat *timebasis, Mat *spaceTime){
   free(colstIndex);
   free(index_i);
   free(st_basisA);
-}
-
-void yk_formatSpaceTimeBasis(Cluster *primal, Mat *subspaceTime,
-			     Mat *spaceTime, Mat *spaceTime_i, Is_it *reduced){
-  //------------------------------------//-------------------------------------
-  // Variables here                     // Comments section
-  //------------------------------------//-------------------------------------
-  int i, j, k, m;
-  PetscInt j_n;
-  PetscInt *nnz;
-  PetscInt rows, nBasis;
-  PetscInt n_rows, n_spaceTimeBasis=0;
-  PetscInt *rIndex;
-  PetscInt *bIndex;
-  PetscInt *st_bIndex;
-  PetscInt nBasis_pre=0;
-  PetscInt b_0 = 0;
-  PetscInt *st_index;
-  PetscScalar *varray;
-  PetscInt *colIndex;
-  PetscInt *index_i = (PetscInt *) malloc (primal->self->systemSize*
-					   sizeof(PetscInt));
-  PetscInt *spaceindex = (PetscInt *) malloc (primal->self->systemSize*
-					      sizeof(PetscInt));
-  PetscScalar *ex_array;
-  PetscInt n_b=0;
-
-  //initialize the size of the spaceTime (number of rows in that big ass matrix
-  //---------------------------------------------------------------------------
-  // Initialization
-  //---------------------------------------------------------------------------
-  MatGetSize(subspaceTime[0], &rows, &nBasis);
-  n_spaceTimeBasis = nBasis;
-  /* MatCreate(PETSC_COMM_SELF, &spaceTime_i[0]); */
-
-
-  rIndex = (PetscInt *) malloc (rows*sizeof(PetscInt));
-  for (i=0; i<rows; i++)
-    rIndex[i] = i;
-  //For the off diagonals
-
-  //Calcualte the total number of rows in the entire big ass matrix
-  n_rows = rows*reduced->nSubWindows;
-  nnz = (PetscInt *) malloc (n_rows*sizeof(PetscInt));
-
-  //Find the total number rows and colums for the future spaceTime matrix
-
-  for (i=1; i<reduced->nSubWindows; i++){
-    MatGetSize(subspaceTime[i], &rows, &nBasis);
-    n_spaceTimeBasis+=nBasis;
-  }
-  colIndex = (PetscInt *) malloc (n_spaceTimeBasis*sizeof(PetscInt));
-  for (i=0; i<n_spaceTimeBasis; i++)
-    colIndex[i] = i;
-  for (i=0; i<reduced->nSubWindows; i++){
-
-
-    MatGetSize(subspaceTime[i], &rows, &nBasis);
-    n_b += nBasis;
-    //Need to Matind the number of zeros for each row in the uber space-time mat
-    for (j=0; j<rows; j++){
-      nnz[i*rows+j] = n_b;
-    }
-    for (j=0; j<primal->self->time.count; j++){
-      j_n = i*primal->self->time.count+j;
-      MatCreate(PETSC_COMM_SELF, &spaceTime_i[j_n]);
-      MatSetSizes(spaceTime_i[j_n], primal->self->systemSize, n_spaceTimeBasis,
-		  primal->self->systemSize, n_spaceTimeBasis);
-      MatSetType(spaceTime_i[j_n], MATSEQAIJ);
-      MatSeqAIJSetPreallocation(spaceTime_i[j_n], n_b, NULL);
-    }
-  }
-  //Now that we have all the information, we can create the petsc MAT object
-  MatCreate(PETSC_COMM_SELF, spaceTime);
-  MatSetSizes(*spaceTime, n_rows, n_spaceTimeBasis, n_rows, n_spaceTimeBasis);
-  MatSetType(*spaceTime, MATSEQAIJ); //Let's make it sparse
-  MatSeqAIJSetPreallocation(*spaceTime, NULL, nnz);
-  //---------------------------------------------------------------------------
-  // Implementation
-  //---------------------------------------------------------------------------
-
-  //Now build the damn matrix, have to iterate through all the fucking windows
-  for (i=0; i<reduced->nSubWindows; i++){
-    //-------------------------------------------------------------------------
-    // Prepare and initialize the data and such
-    //-------------------------------------------------------------------------
-    //Having to call MatSize all the time is so fucking annoying
-    MatGetSize(subspaceTime[i], &rows, &nBasis);
-    st_index = (PetscInt *) malloc (rows*sizeof(PetscInt));
-    ex_array = (PetscScalar *) malloc
-      (primal->self->systemSize*nBasis*sizeof(PetscScalar));
-    //Need to properally allocate since each subwindow won't nec have samebasis
-    /* if (i==0){ */
-    bIndex = (PetscInt *) malloc (nBasis*sizeof(PetscInt));
-    st_bIndex = (PetscInt *) malloc (nBasis*sizeof(PetscInt));
-    varray = (PetscScalar *) malloc (nBasis*rows*sizeof(PetscScalar));
-    /* }else if (i > 0 && nBasis!=nBasis_pre){ */
-    /*   bIndex = realloc(bIndex, nBasis*sizeof(PetscInt)); */
-    /*   st_bIndex = realloc(st_bIndex, nBasis*sizeof(PetscInt)); */
-    /*   varray = realloc(varray, nBasis *rows*sizeof(PetscScalar)); */
-    /* } */
-    /* printf("fridge\n"); */
-    //Fill in all the redidiculous indices shit
-    for (j=0; j<nBasis; j++){
-      bIndex[j] = j;
-      st_bIndex[j] = b_0+j;
-    }
-    for (j=0; j<rows; j++){
-      st_index[j] = i*rows+j;
-    }
-    //-------------------------------------------------------------------------
-    // Create the giant fuckng matrix
-    //-------------------------------------------------------------------------
-    //Set the diagonals here
-    MatGetValues(subspaceTime[i], rows, rIndex, nBasis, bIndex, varray);
-    MatSetValues(*spaceTime, rows, st_index, nBasis, st_bIndex, varray,
-		 INSERT_VALUES);
-   //---- maybe
-    for (j=0; j<primal->self->time.count; j++){
-      for (k=0; k<primal->self->systemSize; k++)
-	index_i[k] = j*primal->self->systemSize+k;
-      MatGetValues(subspaceTime[i], primal->self->systemSize, index_i,
-		   nBasis, bIndex, varray);
-      MatSetValues(spaceTime_i[i*primal->self->time.count+j],
-		   primal->self->systemSize, primal->self->index, nBasis, st_bIndex,
-		   varray,INSERT_VALUES);
-    }
-    //---- maybe
-    /* //Set the lower off diagonal stuff here */
-    /* while(i<reduced->nSubWindows-1){ */
-    for (j=0; j<primal->self->systemSize; j++){
-      spaceindex[j] = rows-primal->self->systemSize+j;
-    }
-    b_0 += nBasis;
-    /*   printf("poch\n"); */
-    MatGetValues(subspaceTime[i], primal->self->systemSize, spaceindex,
-		 nBasis, bIndex, ex_array);
-
-    for (j=i+1; j<reduced->nSubWindows; j++){
-      for (m=0; m<primal->self->time.count; m++){
-	for (k=0; k<primal->self->systemSize; k++){
-	  index_i[k]=j*(primal->self->time.count*primal->self->systemSize)+m*primal->self->systemSize+k;
-	}
-	MatSetValues(*spaceTime, primal->self->systemSize, index_i,
-		     nBasis, st_bIndex, varray, INSERT_VALUES);
-	MatSetValues(spaceTime_i[j*primal->self->time.count+m],
-		     primal->self->systemSize, primal->self->index, nBasis,
-		     st_bIndex,
-		     varray, INSERT_VALUES);
-      }
-
-    }
-    for (j=0; j<primal->self->time.count; j++){
-      MatAssemblyBegin(spaceTime_i[i*primal->self->time.count+j], MAT_FINAL_ASSEMBLY);
-      MatAssemblyEnd(spaceTime_i[i*primal->self->time.count+j], MAT_FINAL_ASSEMBLY);
-    }
-  /* printf("touching touching\n"); */
-    /* b_0+=nBasis; */
-    nBasis_pre = nBasis;
-    /* printf("%d\n", b_0); */
-    /* printf("%d\n", nBasis_pre); */
-    free(ex_array);
-    free(st_index);
-    free(st_bIndex);
-    free(bIndex);
-    free(varray);
-  }
-  MatAssemblyBegin(*spaceTime, MAT_FINAL_ASSEMBLY);
-  MatAssemblyEnd(*spaceTime,MAT_FINAL_ASSEMBLY);
-  /* colIndex = (PetscInt *) malloc (sizeof(PetscInt)); */
-  /* for (i=0; i<n_spaceTimeBasis; i++) */
-  /*   colIndex[i] = i; */
-
-  free(spaceindex);
-  free(colIndex);
-  free(index_i);
-  free(rIndex);
-  free(nnz);
 }
 
 /* void yk_createUltimateSpaceTimeBasis(yk_PrimalSolver *ykflow, */

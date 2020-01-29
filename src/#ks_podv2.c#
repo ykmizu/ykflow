@@ -178,6 +178,10 @@ void moorePenrosePseudoInv(Mat A, int rowSize, int colSize, Mat *Aplus){
   
 }
 
+
+
+
+
 void properOrthogonalDecompose(Mat snapshot, int systemSize,
                                PetscInt *numSingularValues, Mat *A){
   int i;                               //initialization for iteration

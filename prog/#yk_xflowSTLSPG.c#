@@ -423,19 +423,25 @@ int yk_getOffDiagonalJacobiansGroup(yk_PrimalSolver *ykflow, Galaxy *primal,
   xf_JacobianMatrix *Mass;
   yk_Xflow *xflow = (yk_Xflow *) ykflow->solver;
   xf_SolverData *SolverData = NULL;
+  printf("weord\n");
   xf_Call(xf_CreateSolverData(xflow->All, &SolverData));
   SolverData->DoProcessResidual = xfe_False; // do not process residual
   SolverData->UseArtificialDt = xfe_False;
   SolverData->c = 0;
+  printf("ok\n");
   xf_Call(xf_FindSimilarVectorGroup(xflow->All, xflow->UG, "residual",
 				    xfe_True,
 				    xfe_True, NULL, &RG, &Found));
+  printf("dddddd\n");
   ierr = xf_Error(xf_FindJacobianMatrix(xflow->All, xflow->All->DataSet,
                                         xflow->UG, NULL,
                                         xfe_True, NULL, NULL, &Mass, NULL));
+  printf("eeeee\n");
   xf_SetZeroJacobian(Mass);
+  printf("ffff\n");
   xf_Call(xf_AddMassMatrixGroup(xflow->All, 1.0, NULL, xflow->UG, RG, Mass,
 				SolverData));
+  printf("hrm\n");
   /* if (*Jacobian[i] != NULL) */
   yk_matrix2D2MatGroup(xflow->All, Mass, primal, *Jacobian, reduced);
   xf_Call(xf_DestroySolverData(SolverData));
@@ -1121,7 +1127,7 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
     printf("----------------------------------------------------------------\n");
     fom->self->time.window_i = i;
     yk_createReducedOrderModel_ST(ykflow, multiquation, fom, reduced);
-    yk_runReducedOrderModel_ST(ykflow, multiquation, fom, rom, reduced);
+    /* yk_runReducedOrderModel_ST(ykflow, multiquation, fom, rom, reduced); */
     /* /\* yk_storeBasisInfoWindow(i, reduced); *\/ */
     /* yk_print2xflowTxt(ykflow, multiquation, rom->self); */
 

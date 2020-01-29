@@ -160,6 +160,8 @@ void read_input(int argc, char *argv[], Universe eqn, Galaxy* u_fine,
           reduced->nTimeSegs = atoi(lines_temp);
 	  reduced->win_i = (PerWindow *) malloc
 	    (reduced->nTimeSegs*sizeof(PerWindow));
+	}else if (strcmp(lines, "numSubSpacesPerWindow")==0){
+	  reduced->nSubWindows = atoi(lines_temp);
 	}else if (strcmp(lines, "numSubSpacesPerWindow") == 0){
 	  reduced->nSubPWin = atoi(lines_temp);
         }else if (strcmp(lines, "dss") == 0){
