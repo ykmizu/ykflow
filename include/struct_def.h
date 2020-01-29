@@ -75,10 +75,12 @@ typedef struct{
   double dt;               //Time step for entire simulation
   int count;               //Number of time step elements in entire simulation
   int node;                //Refering to the time node the spatial is on
+  int count_wi;            //Number of time step elements in current time win
   double globalT_0;        //Initial time for the entire simulation
   double globalT_f;        //Final time for the entire simulation
   double t_0;              //Local initial time for the currenttime window
   double t_f;              //Local final time for the the current time window
+  int window_i;
 }Time;
 
 //-----------------------------------------------------------------------------
@@ -107,6 +109,14 @@ typedef struct { //the command module
 
 
 typedef struct{
+  PetscInt nBasisFuncs_w;
+  PetscInt *nBasisTime_w_mu; //malloc of length nBasisFuncs_w
+  Mat ST_rOBState;
+  Mat *ST_rOBState_i;
+}PerWindow; //Information for the current window
+
+
+typedef struct{
   double actualJbar;
   int typeLSS;
   double delJ_psi;
@@ -117,6 +127,7 @@ typedef struct{
   int hrom; //indiciates if we are dealing with a rom or hrom solution
   int reducedSolution;    //1 is yes 0 is no
   int nTimeSegs;
+  int nSubPWin;
   int restart;
   int reducedLSS;
   int innerStart;
@@ -129,14 +140,19 @@ typedef struct{
   double *dparams;
   double *paramMeshGrid;
   int nSampleNodes;  //number of sample nodes
-  int nBasisFuncs;
-  int nBasisTime;
+  //----
+  PetscScalar eBasisTime;
+  PetscScalar eBasisSpace;
+  PetscInt nBasisFuncs;
+  PetscInt nBasisTime;
+  PetscInt nSubWindows;
+  //----
+  Vec init;
+  PetscInt nBasisFuncs_w_i;
+  PetscInt *nBasisTime_w_mu;
   int nBasisFuncsRJ;
   int nSnapshotsRJ;
   Mesh reducedMesh;       //sample nodes+ nodes within the same element
-  Mat rOBState;           //if 1, then rOBState, A, and B should be filled up
-  Mat ST_rOBState;
-  Mat *ST_rOBState_i;
   Mat rOBStateRed;        //number of rows is the sixe of reducedMesh
   Mat rOBStateBar;        //Number of rows is the size of primalApprox
   Mat rOBResidual;
@@ -147,7 +163,13 @@ typedef struct{
   Mat Zmult;
   Mat A;   //Offline Matrix
   Mat B;   //Ofline Matrix
+  Mat rOBState;           //if 1, then rOBState, A, and B should be filled up
+  Mat ST_rOBState;
+  Mat *ST_rOBState_i;
+  PetscInt w_i; //Window number ID
+  PerWindow **win_i;
 }Is_it;
+
 
 void initIs_it(Is_it *reduced);
 
