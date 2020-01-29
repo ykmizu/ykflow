@@ -43,11 +43,12 @@
 
 void yk_createReducedOrderModel_ST(yk_PrimalSolver *ykflow,
                                    Multiverse *multiquation, Cluster *primal,
-                                   Cluster *primalApprox, Is_it *reduced);
+                                   Is_it *reduced);
 
 void yk_runReducedOrderModel_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
 			     Cluster *primal, Cluster *primalApprox,
 			     Is_it *reduced);
+void yk_storeBasisInfoWindow(int window_num_i, Is_it *reduced);
 
 void yk_destroyReducedOrderModel_ST(yk_PrimalSolver *ykflow,
                                     Multiverse *multiquation, Cluster *primal,
@@ -81,7 +82,8 @@ void yk_findBoundarySeeds1D(yk_PrimalSolver *ykflow, Multiverse *multiquation,
 void yk_findAdjacentElems1D(yk_PrimalSolver *ykflow, Cluster *primal, int elem,
                             int *elemSet);
 
-void createInitialConditions_ST(yk_PrimalSolver *ykflow, Cluster *primal,
-				Mat * s_mu, Vec *estimatediniST,
+void createInitialConditions_ST(yk_PrimalSolver *ykflow,
+				Multiverse *multiquation, Cluster *primal,
+				Mat *st_rOBTemp, Vec *estimatediniST,
 				Is_it *reduced);
 #endif
