@@ -33,9 +33,9 @@ CFLIncreaseFactor = 10
 CFLMin = 1e-7
 TimeScheme = BDF2
 Time = 0
-EndTime = 0.5
-nTimeStep = 5
-UnsteadyWriteInterval = 1
+EndTime = 0.4
+nTimeStep = 4
+Unsteadywriteinterval = 1
 
 ####### Output Parameters #######
 Verbosity = Medium

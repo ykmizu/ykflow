@@ -1,19 +1,18 @@
 import numpy as np
 import os, sys
 
-if __name__ == '__main__':
-    mach = 0.7
-    alfa = 0
-    reynolds = 10000
+def main(argv):
+    mach = float(argv[1])
+    alfa =  float(argv[2])
+    reynolds = float(argv[3])
+    # print(os.getcwd())
 
-    print(os.getcwd())
+    # folder = "naca_M_"+str(int(mach*10))+"_A_"+ str(alfa)+"_Re_"+\
+    #     str(reynolds)
 
-    folder = "naca_M_"+str(int(mach*10))+"_A_"+ str(alfa)+"_Re_"+\
-        str(reynolds)
-
-    os.mkdir(folder)
-    os.system("cp naca.inp naca.job naca.geom nacatri_fine.gri "+ str(folder))
-    os.chdir(os.getcwd()+"/"+folder)
+    # os.mkdir(folder)
+    # os.system("cp naca.inp naca.job naca.geom nacatri_fine.gri "+ str(folder))
+    # os.chdir(os.getcwd()+"/"+folder)
     #--------------------------------------------------------------------------
     # Calcualte Parameters
     #--------------------------------------------------------------------------
@@ -140,4 +139,8 @@ if __name__ == '__main__':
         inputWrite.write("ENDBLOCK\n")
 
 
-    os.system("../../../../../bin/yk_STLSPG -job naca -input naca")
+#    os.system("../../../../../bin/yk_STLSPG -job naca -input naca")
+
+if __name__ == '__main__':
+
+    main(sys.argv)

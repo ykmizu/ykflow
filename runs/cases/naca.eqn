@@ -1,14 +1,5 @@
-# This file defines the equation set being solved.
-#
-# Specified here are:
-#  -  Equation-specific parameters
-#  -  Initial condition
-#  -  Boundary conditions
-#  -  Residual terms
-#  -  Outputs
 
 EqnSetLibrary = libCompressibleNS.so
-
 
 #------------------------------#
 # Equation-specific parameters #
@@ -19,7 +10,7 @@ STARTBLOCK PARAM
 ConstViscosity = True
 SpecificHeatRatio = 1.4
 GasConstant = 0.4
-Viscosity = 1.0e-4
+Viscosity = 0.0001
 
 ENDBLOCK
 
@@ -40,7 +31,6 @@ TermType = Diffusion
 
 ENDBLOCK
 
-
 #---------------------#
 #  Initial condition  #
 #---------------------#
@@ -48,12 +38,9 @@ ENDBLOCK
 STARTBLOCK IC
 
 ICType = FullState
-Data = 1.0 0.984807753012208 0.17364817766693033 4.144314868804665
-#Data = 1.0 0.984807753012208 0.17364817766693033 45.142857142857153
-#Data = 1.0 0.9975640502598242 0.0697564737441253 45.142857142857153
+Data = 1.0 0.9902680687415704 0.13917310096006544 4.144314868804666
 
 ENDBLOCK
-
 
 #-----------------------#
 #  Boundary conditions  #
@@ -69,19 +56,13 @@ Data = 0.0
 
 BFGTitle = Inflow
 BCType = FullState
-Data = 1.0 0.984807753012208 0.17364817766693033 4.144314868804665
-#Data = 1.0 0.984807753012208 0.17364817766693033 45.142857142857153
-#Data = 1.0 0.9975640502598242 0.0697564737441253 45.142857142857153
+Data = 1.0 0.9902680687415704 0.13917310096006544 4.144314868804666
 
 BFGTitle = Outflow
 BCType = FullState
-Data = 1.0 0.984807753012208 0.17364817766693033 4.144314868804665
-#Data = 1.0 0.984807753012208 0.17364817766693033 45.142857142857153
-#Data = 1.0 0.9975640502598242 0.0697564737441253 45.142857142857153
-
+Data = 1.0 0.9902680687415704 0.13917310096006544 4.144314868804666
 
 ENDBLOCK
-
 
 #---------#
 # Outputs #
@@ -95,38 +76,34 @@ OutputName = Drag
 OutputType = BoundaryIntegral
 UsesFlux = True
 FluxComponentNames = XMomentum YMomentum
-#FluxComponentWeights = 0.9975640502598242 0.0697564737441253
-FluxComponentWeights = 0.984807753012208 0.17364817766693033
+FluxComponentWeights = 0.9902680687415704 0.13917310096006544
 BFGTitles = Airfoil
 
 OutputName = Lift
 OutputType = BoundaryIntegral
 UsesFlux = True
 FluxComponentNames = XMomentum YMomentum
-#FluxComponentWeights = -0.0697564737441253 0.9975640502598242
-FluxComponentWeights = -0.17364817766693033 0.984807753012208
+FluxComponentWeights = -0.13917310096006544 0.9902680687415704
 BFGTitles = Airfoil
 
 OutputName = LiftIntegral
 OutputType = BoundaryIntegral
 UsesFlux = True
 FluxComponentNames = XMomentum YMomentum
-#FluxComponentWeights = -0.0697564737441253 0.9975640502598242
-FluxComponentWeights = -0.17364817766693033 0.984807753012208
+FluxComponentWeights = -0.13917310096006544 0.9902680687415704
 BFGTitles = Airfoil
 TimeNorm = Integral
 StartTime = 0
-EndTime = 100
+EndTime = 25.6
 
 OutputName = DragIntegral
 OutputType = BoundaryIntegral
 UsesFlux = True
 FluxComponentNames = XMomentum YMomentum
-FluxComponentWeights = 0.984807753012208 0.17364817766693033
-#FluxComponentWeights = 0.9975640502598242   0.0697564737441253
+FluxComponentWeights = 0.9902680687415704 0.13917310096006544
 BFGTitles = Airfoil
 TimeNorm = Integral
 StartTime = 0
-EndTime = 100
+EndTime = 25.6
 
 ENDBLOCK

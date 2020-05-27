@@ -1,5 +1,4 @@
 
-
 %------------------------------------------------------------------------------
 % LEAST SQUARES SHADOWING & HYPER-REDUCED ORDER MODELING INPUT
 %------------------------------------------------------------------------------
@@ -10,28 +9,38 @@
 % Parameters
 %------------------------------------------------------------------------------
 numParams = 3
-params = 0.7 10 10000
+params = 0.70 8 10000
 
 %------------------------------------------------------------------------------
 % Reduced Order Modeling information
 %------------------------------------------------------------------------------
-paramsL = 0.7 10 10000
+paramsL = 0.7 9 10000
 paramsH = 0.7 10 10000
 dparams = 1 1 1
-
+%numBasisFunctions = 3
+%numBasisTime = 1
 dss = 1
-numBasisFunctions = 3
-numBasisTime = 1
+engyBasisFunctions = 0.999
+engyBasisTime = 0.999
+
+engyReBasisFunctions = 1
+engyReBasisTime = 1
+
+numTimeSegments =1
+numSubSpacesPerWindow = 1
+
 %------------------------------------------------------------------------------
 % Hyper Reduced Order Modeling information
 %------------------------------------------------------------------------------
-numSampleNodes =1000
-numBasisFunctionsRJ = 1000
+pSampleElems = 1
+%numSampleNodes =
+%numSampleSpace = 16
+numSampleTime =5
+%numBasisFunctionsRJ = 1000
 %------------------------------------------------------------------------------
 % LSS STUFF HERE Activate
 %------------------------------------------------------------------------------
 %outerGMRESIterationNumber = 1
 %innerGMRESIterationNumber = 1
 reducedLSS = 1
-numTimeSegments = 2
 restart = 0
