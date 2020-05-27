@@ -6,7 +6,7 @@ cmake_policy(SET CMP0075 NEW)
 SET(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake-modules")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
 set( CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib )
-set(CMAKE_C_FLAGS "-g -Wall /home/yshimiz/xflow/build/src/xf_SolverMultiStepStage.o")
+set(CMAKE_C_FLAGS "-g -Wall /Users/yshimiz/xflow/build/src/xf_SolverMultiStepStage.o")
 
 
 set (CMAKE_C_FLAGS "-std=c11 -fms-extensions")
@@ -36,32 +36,19 @@ set(SRC_SOURCE_FILES
 src/basisfunc.c
 src/getBDFCoef.c
 src/injection.c
-src/ks_adjoint_MATVEC.c
 src/ks_ApplyTimeScheme.c
 src/ks_copyUtype.c
-src/ks_dres_advection.c
-src/ks_dres_burgers.c
-src/ks_dres_diffusion.c
-src/ks_dres_lagrange.c
 src/ks_dres_fourth_IPDG.c
-src/ks_dres_tangent.c
 src/ks_function.c
 src/ks_greedyAlgorithm.c
 src/ks_GMRES.c
 src/ks_initialConditions.c
-src/ks_implicitTimeSolver.c
 src/ks_jbaraverage.c
 src/ks_mass.c
 src/ks_offlineMatrix.c
 src/ks_podv2.c
 src/ks_read_solution_file.c
-src/ks_res_advection.c
-src/ks_res_burgers.c
-src/ks_res_diffusion.c
-src/ks_res_fourth_IPDG.c
 src/ks_Residual.c
-src/ks_res_lagrange.c
-src/ks_res_tangent.c
 src/ks_dRdU.c
 src/qRFactorization.c
 src/quadrature.c
@@ -77,6 +64,19 @@ src/yk_leastSquaresShadowing.c
 src/yk_solverCFD.c
 src/yk_performPOD.c
 src/yk_gaussNewtonSolve.c
+src/ks_dres_lagrange.c
+src/ks_res_lagrange.c
+src/ks_dres_burgers.c
+src/ks_res_tangent.c
+src/ks_res_fourth_IPDG.c
+src/ks_res_diffusion.c
+src/ks_adjoint_MATVEC.c
+src/ks_dres_tangent.c
+src/ks_dres_advection.c
+src/ks_res_advection.c
+src/ks_dres_diffusion.c
+src/ks_res_burgers.c
+src/ks_implicitTimeSolver.c
 src/yk_calculateError.c
 )
 
@@ -127,6 +127,12 @@ find_package(SLEPc REQUIRED)
 include_directories(${SLEPC_INCLUDES})
 add_definitions(${SLEPC_DEFINITIONS})
 target_link_libraries(chaos /home/yshimiz/slepc/arch-darwin-c-debug/lib/libslepc.so)
+
+
+#---
+# Link math
+#---
+target_link_libraries(chaos m)
 
 #------------------------------------------------------------------------------
 # Link MPICH library that chaos is dependent on

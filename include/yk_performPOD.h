@@ -14,6 +14,7 @@
 #include "ks_dRdU.h"
 #include "slepcsvd.h"
 #include "yk_solverCFD.h"
+#include "ks_greedyAlgorithm.h"
 
 Mat * yk_createSnapshotState(yk_PrimalSolver *ykflow, Multiverse *multiquation,
 			    Cluster *primal, Mat *snapshot, int snapshotStep,
@@ -34,8 +35,8 @@ void yk_properOrthogonalDecomposeGroup(Mat *snapshot, int numSnapshots,
 
 void yk_createTemporalSnapshotState(yk_PrimalSolver *ykflow,
                                     Multiverse *multiquaiton, Cluster *primal,
-                                    Mat *snapshot, Mat *s_mu, int snapshotStep,
-                                    Is_it *reduced);
+				    Mat spaceBasis, Mat *snapshot, Mat *s_mu,
+				    int snapshotStep, int dim3, Is_it *reduced);
 
 void yk_createSpaceTimeBasis(Mat *spacebasis, Mat *timebasis, Mat *spaceTime);
 

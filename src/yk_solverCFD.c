@@ -13,7 +13,7 @@ yk_PrimalSolver* new_Ykflow(){
   ykflow->Residual = yk_ykflow_totalResidual;
   //  ykflow->FomName = yk_fomBuffer;
   ykflow->boundarySeeds = yk_findBoundarySeeds1D;
-  ykflow->adjacentElems = yk_findAdjacentElems1D;
+  /* ykflow->adjacentElems = yk_findAdjacentElems1D; */
   ykflow->aveSpatialOutput = spatialOutputAverage;
   ykflow->spatialdJdU = ks_dJdU;
   ykflow->anyFunction = yk_any1D_function;

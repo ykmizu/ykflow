@@ -30,16 +30,16 @@ void yk_createReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   // Initialization (Mallocs and stuff)
   //---------------------------------------------------------------------------
   //Total number of tmeporal snapshots in the entire domain (no initial cond)
-  snapshotCount = primal->self->time.count;
+  snapshotCount_win = primal->self->time.count;
   /* //Total number of temporal sanpshots in each time window */
-  snapshotCount_win = snapshotCount/reduced->nTimeSegs;
+  /* snapshotCount_win = snapshotCount/reduced->nTimeSegs; */
   //Total number of temporal snapshots in each sub window
   snapshotCount_sub = snapshotCount_win/reduced->nSubWindows;
   // Number of snapshots already finished before this current time window
+  /* snapshotCount_0 = primal->self->time.window_i * snapshotCount_win; */
   //ALlocate the subspaces and its corresponding basis for each window
   PetscMalloc1(reduced->nSubWindows, &subspaceTime);
   PetscMalloc1(snapshotCount_win, &reduced->ST_rOBState_i);
-  snapshotCount_0 = primal->self->time.window_i * snapshotCount_win;
   //---------------------------------------------------------------------------
   // Implementation
   //---------------------------------------------------------------------------
@@ -49,7 +49,7 @@ void yk_createReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   // For each time window, we need to build the basis based on # of time window
   for (i=0; i<reduced->nSubWindows; i++){ //Iterate the number of sub win
     //Set where you want the offline stage to take place in time
-    primal->self->time.t_0 = (snapshotCount_0+i*snapshotCount_sub)*dt;
+    primal->self->time.t_0 = (snapshotCi*snapshotCount_sub)*dt;
     primal->self->time.t_f = (snapshotCount_0+(i+1)*snapshotCount_sub)*dt;
     //-------------------------------------------------------------------------
     // FOr eac subspace time window calcualte the original POD for space
@@ -59,6 +59,7 @@ void yk_createReducedOrderModel_ST(yk_PrimalSolver *ykflow,
     yk_properOrthogonalDecompose(&snapshot, primal->self->systemSize,
                                  primal->self->index, &reduced->nBasisFuncs,
                                  reduced->eBasisSpace, &reduced->rOBState);
+    printf("SIGH SIGH SIGH\n");
     //-------------------------------------------------------------------------
     // Now need to calcualte the temmporal POD and et.c TIME
     //-------------------------------------------------------------------------
@@ -66,8 +67,9 @@ void yk_createReducedOrderModel_ST(yk_PrimalSolver *ykflow,
     PetscMalloc1(nBasis, &st_snapshot);
     PetscMalloc1(nBasis, &st_basis_temp);
     yk_createTemporalSnapshotState(ykflow, multiquation, primal,
-				   reduced->rOBState, st_snapshot, s_mu,
-				   reduced->dss, reduced->numParamSet,reduced);
+				   reduced->rOBState, st_snapshot,
+                                   s_mu, reduced->dss, reduced->numParamSet, reduced);
+
     yk_properOrthogonalDecomposeGroup(st_snapshot, nBasis, snapshotCount_sub,
                                       primal->self->index,&reduced->nBasisTime,
                                       reduced->eBasisTime, st_basis_temp);
@@ -92,12 +94,14 @@ void yk_createReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   //---------------------------------------------------------------------------
   //space time basis, and it's broken down version for each dt in subspace
   //---------------------------------------------------------------------------
+  printf("crappers on a stick\n");
   yk_formatSpaceTimeBasis(primal, subspaceTime, &reduced->ST_rOBState,
 			  reduced->ST_rOBState_i, reduced);
   //-------------------------------------------------------------------------
   // Add the space-time basis to the whole space-time matrix the ultimate one
   //-------------------------------------------------------------------------
   primal->self->time.count = snapshotCount; //reset it
+  printf("freaking a\n");
   //---------------------------------------------------------------------------
   // Destroy Everything
   //---------------------------------------------------------------------------
@@ -123,7 +127,6 @@ void yk_runReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   PetscInt snapshotCount;               // num of snapshot in entire domain
   PetscInt snapshotCount_win;           // nunber of snapshot in entire window
   Vec init;                             // information about the initial cond
-  char residualSnapshot[1000];
   //---------------------------------------------------------------------------
   // Initialize everything
   //---------------------------------------------------------------------------
@@ -131,9 +134,7 @@ void yk_runReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   reduced->nSnapshotsRJ = 0;
   MatGetSize(reduced->ST_rOBState, &row, &nBasis);
   //Create and close the residual data file to fill
-  sprintf(residualSnapshot, "%s_%d.dat", "residualSnapshot",
-	  primal->self->time.window_i);
-  fclose(fopen(residualSnapshot, "w"));
+  fclose(fopen("residualSnapshot.dat", "w"));
   //Total number of tmeporal snapshots in the entire domain (no initial cond)
   snapshotCount = primal->self->time.count;
   //Total number of temporal sanpshots in each time window
@@ -162,9 +163,14 @@ void yk_runReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   initArrayInt(&primalApprox->self->time.tNode_i, snapshotCount_win);
   for (i=0; i<snapshotCount_win; i++)
     primalApprox->self->time.tNode_i.array[i] = i;
+    /* primalApprox->self->time.tNode_i.array[i] = primal->self->time.window_i */
+    /*   *snapshotCount_win+i; */
   initArrayInt(&primalApprox->self->time.time_Os, snapshotCount_win);
   for (i=0; i<snapshotCount_win; i++)
     primalApprox->self->time.time_Os.array[i] = i;
+    /* primalApprox->self->time.time_Os.array[i] = primal->self->time.window_i */
+      /* *snapshotCount_win+i; */
+
 
   sprintf(primalApprox->self->id, "%s_%s_%d_%d_%s", (*_eqnFull).nameEqn,
           primalApprox->clusterId, primalApprox->self->basis.p,
@@ -189,21 +195,25 @@ void yk_runReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   //---------------------------------------------------------------------------
   leftTimeNode = primal->self->time.t_0/primal->self->time.dt;
   if (leftTimeNode == 0){
-    ks_readSolution(*_eqnFull, primal->self, 0);
+    ks_readSolution(*_eqnFull, primal->self, leftTimeNode);
     ks_copySolutions(*_eqnFull, primal->self, primalApprox->self);
-    ks_printSolution(*_eqnFull, primalApprox->self, 0);
+    ks_printSolution(*_eqnFull, primalApprox->self, leftTimeNode);
   }else
     ks_readSolution(*_eqnFull, primalApprox->self, leftTimeNode);
   //---------------------------------------------------------------------------
   // Calculate the initial conditions for the reduced space states
   //---------------------------------------------------------------------------
+
   createInitialConditions_ST(ykflow, multiquation, primal,
 			     &reduced->ST_rOBState, &init, reduced);
+
   vec2Array(*_eqnRcd,primalApprox->reduced,primalApprox->reduced->space, init);
-  ks_printSolution(*_eqnRcd, primalApprox->reduced, primal->self->time.window_i);
+  ks_printSolution(*_eqnRcd, primalApprox->reduced, leftTimeNode);
   //---------------------------------------------------------------------------
   // Gauss Newton solver to minimize 1/2 norm(Residua, 2)^2
   //---------------------------------------------------------------------------
+  printf("rest of geroge in the fridge\n");
+
   yk_gaussNewtonSolve_ST(ykflow, multiquation, primalApprox, reduced,
 			 innertimesolver, &reduced->nSnapshotsRJ);
   //Set the time count back to to the number of dt in the entire time domain
@@ -274,7 +284,7 @@ void yk_createHyperReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   // Variables here                     // Comments section
   //------------------------------------//-------------------------------------
   int i;
-  char residualSnapshots[1000];
+  char *residualSnapshots = "residualSnapshot.dat";
   Universe _equationFull = multiquation->equation;
   Universe _equationReduced = multiquation->equationReduced;
   PetscInt numTime = primal->self->time.count;
@@ -305,11 +315,6 @@ void yk_createHyperReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   //---------------------------------------------------------------------------
   // Initialize everything
   //---------------------------------------------------------------------------
-  sprintf(residualSnapshots, "%s_%d.dat", "residualSnapshot",
-          primal->self->time.window_i);
-
-
-
   for (i=0; i<systemSize; i++) {rowIndex[i] = i;}
 
   //Total number of tmeporal snapshots in the entire domain (no initial cond)
@@ -327,14 +332,11 @@ void yk_createHyperReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   //---------------------------------------------------------------------------
   // Implementation
   //---------------------------------------------------------------------------
-  /* primal->self->time.t_0 = snapshotCount_0; */
-  /* primal->self->time.t_f = (snapshotCount_0+snapshotCount_win)*dt; */
-  primal->self->time.t_0 = primal->self->time.window_i*snapshotCount_win*dt;
-  primal->self->time.t_f=(primal->self->time.window_i+1)*snapshotCount_win*dt;
+  primal->self->time.t_0 = snapshotCount_0;
+  primal->self->time.t_f = (snapshotCount_0+snapshotCount_win)*dt;
   //---------------------------------------------------------------------------
   // Find the residual basis matrix
   //---------------------------------------------------------------------------
-
   sRes_mu = ks_readMatrix(residualSnapshots, systemSize, snapshotCount_win,
 			  &rSnapshot, &RJLines, reduced);
   yk_properOrthogonalDecompose(&rSnapshot, systemSize, rowIndex,
@@ -351,23 +353,16 @@ void yk_createHyperReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   yk_createTemporalSnapshotState(ykflow, multiquation, primal,
 				 reduced->rOBResidual, st_snapshot,
 				 sRes_mu, reduced->dss, RJLines, reduced);
-  MatGetSize(rSnapshot, &m, &n);
-  MatGetSize(*st_snapshot, &m, &n);
-
   yk_properOrthogonalDecomposeGroup(st_snapshot, nBasis, snapshotCount_win,
 				    primal->self->index,&reduced->nBasisTime,
 				    reduced->eBasisTime, st_basis_temp);
-
   //---------------------------------------------------------------------------
   // Create the ultimate  space-time residual matrix
   //---------------------------------------------------------------------------
   yk_createSpaceTimeBasis(&reduced->rOBResidual,st_basis_temp, &subspaceTime);
-  MatGetSize(reduced->rOBResidual, &m, &n);
-  MatGetSize(*st_basis_temp, &m, &n);
   MatGetSize(subspaceTime, &m, &n);
 
-  MatCreateSeqDense(PETSC_COMM_SELF, st_systemSize, n, NULL,
-		    &reduced->ST_rOBResidual);
+  MatCreateSeqDense(PETSC_COMM_SELF, st_systemSize, n, NULL, &reduced->ST_rOBResidual);
   MatCreateSeqDense(PETSC_COMM_SELF, n, n, NULL, &R);
   qRFactorization(subspaceTime, reduced->ST_rOBResidual, R);
   //---------------------------------------------------------------------------
@@ -388,9 +383,10 @@ void yk_createHyperReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   //---------------------------------------------------------------------------
   MatMatMult(reduced->Z_Os, reduced->ST_rOBState, MAT_INITIAL_MATRIX,
 	     PETSC_DEFAULT, &reduced->ST_rOBStateBar);
-  for (i=0; i<snapshotCount_win; i++)
+  for (i=0; i<snapshotCount_win; i++){
     MatMatMult(reduced->spaceZ, reduced->ST_rOBState_i[i], MAT_INITIAL_MATRIX,
 	       PETSC_DEFAULT, &reduced->ST_rOBStateBar_i[i]);
+  }
 
   //-------------------------------------------------------------------------
   // Add the space-time basis to the whole space-time matrix the ultimate one
@@ -522,14 +518,9 @@ void yk_runHyperReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   if (leftTimeNode == 0){
     ks_readSolution(_equationFull, primal->self, leftTimeNode);
     ks_copySolutions(_equationFull, primal->self, primalApprox->self);
-    ks_copySolutions(_equationFull, primal->self, primalApprox->stateFull);
     ks_printSolution(_equationFull, primalApprox->self, leftTimeNode);
-    ks_printSolution(_equationFull, primalApprox->stateFull, leftTimeNode);
   }else
     ks_readSolution(_equationFull, primalApprox->self, leftTimeNode);
-
-
-
   //---------------------------------------------------------------------------
   // Calculate the initial conditions for the reduced space states
   //---------------------------------------------------------------------------
@@ -539,7 +530,7 @@ void yk_runHyperReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   vec2Array(multiquation->equationReduced, primalApprox->reduced,
 	    primalApprox->reduced->space, init);
   ks_printSolution(multiquation->equationReduced, primalApprox->reduced,
- 		   primal->self->time.window_i);
+ 		   leftTimeNode);
   //---------------------------------------------------------------------------
   // Gauss NEwton to minimize 1/2 norm(Residua, 2)^2
   //---------------------------------------------------------------------------
@@ -1106,14 +1097,9 @@ void createInitialConditions_ST(yk_PrimalSolver *ykflow,
 						 sizeof(PetscScalar));
   PetscScalar *state_0 = (PetscScalar *) malloc (primal->self->systemSize*
 						 sizeof(PetscScalar));
-  char tempS[1000];
- //---------------------------------------------------------------------------
+  //---------------------------------------------------------------------------
   // initialization
   //---------------------------------------------------------------------------
-  /* strcpy(tempS, primal->self->id); */
-  /* strcpy(primal->self->id, primal->self->jobName); */
-
-
   MatGetSize(*st_rOBTemp, &row, &nBasis);
 
   //Create the snapshot in vector form
@@ -1129,12 +1115,11 @@ void createInitialConditions_ST(yk_PrimalSolver *ykflow,
   // Implementation
   //---------------------------------------------------------------------------
   //Find the file name of the folder we want to go into and set it to nameOfDir
-  sprintf(nameOfDir, "%s_M_%d_A_%d_Re_%d", multiquation->equation.nameEqn,
-	  mach, alfa, reynolds);
+  sprintf(nameOfDir, "%s_M_%d_A_%d_Re_%d", multiquation->equation.nameEqn, mach,
+          alfa, reynolds);
   //Go into the folder now
   chdir(nameOfDir);
   getcwd(cwd, sizeof(cwd));
-
   //Read the state solutions for the initial time in that directory
   ks_readSolution(multiquation->equation, primal->self, timeNode0);
   array2Data(multiquation->equation, primal->self, state_0);
@@ -1168,7 +1153,7 @@ void createInitialConditions_ST(yk_PrimalSolver *ykflow,
 
   MatMult(A, vecsnapshot, *estimatedinitST);
   chdir("../");
-  /* strcpy(primal->self->id, tempS); */
+
   VecDestroy(&vecsnapshot);
   MatDestroy(&A);
   free(index);

@@ -24,14 +24,19 @@
 #include <time.h>
 
 /* void moorePenrosePseudoInv(Mat A, int rowSize, int colSize, Mat *Aplus); */
+void yk_kkron(Mat A, Mat B, Mat *KKRON);
+void yk_kkron_DENSE(Mat A, Mat B, Mat *KKRON);
+
 void yk_kron(Mat A,  Vec B, double ***kron);
 double dot(double* a, double*b, int size);
 void projection(Universe eqn, Vec U, Vec vp);
 void getSegArray(Universe eqn, Galaxy *U, double *R, int seg, Vec vp);
 void data2Array(Universe eqn, Galaxy *U, double *u);
 void array2Data(Universe eqn, Galaxy *U, double *u);
-void array2Vec(Universe eqn, Galaxy *U, Vec v_petsc);
-void vec2Array(Universe eqn, Galaxy *U, Vec vcon);
+/* void array2Vec(Universe eqn, Galaxy *U, Vec v_petsc); */
+void array2Vec(Universe equation, Galaxy *state, Mesh mesh, Vec vcon);
+/* void vec2Array(Universe eqn, Galaxy *U, Vec vcon); */
+void vec2Array(Universe equation, Galaxy *state, Mesh mesh, Vec vcon);
 void ks_MatRow2Vec(Mat M, PetscInt m, PetscInt idxm[], Vec V, PetscInt rowi,
                    InsertMode iora);
 void ks_MatCol2Vec(Mat M, PetscInt m, PetscInt idxm[], Vec V, PetscInt coli,

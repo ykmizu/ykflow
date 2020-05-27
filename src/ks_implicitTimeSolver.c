@@ -3,7 +3,7 @@
 void ks_implicitTimeSolve(yk_PrimalSolver *ykflow, Multiverse *multiquation,
 			  Cluster *primal, Is_it *reduced, int innert){
   //------------------------------------//-------------------------------------
-  // Variables here                     // Comments section                    
+  // Variables here                     // Comments section
   //------------------------------------//-------------------------------------
   int newtonFlag = 0;
   int newtCounter = 0;
@@ -12,9 +12,9 @@ void ks_implicitTimeSolve(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   int elementSize;
   PetscInt maxits = 1000;
   PetscScalar l2norm;
-  PetscReal rtol = pow(10,-16);                                                
-  PetscReal abstol = pow(10,-16);                                            
-  PetscReal dtol= 1000;                                                      
+  PetscReal rtol = pow(10,-16);
+  PetscReal abstol = pow(10,-16);
+  PetscReal dtol= 1000;
   PetscInt iterNum;
   Vec residual = NULL;
   Vec objectVec = NULL;
@@ -23,8 +23,8 @@ void ks_implicitTimeSolve(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   PC pc;
   Universe _eqnOfInterest;
   int i;
-  clock_t start, end;                                                          
-  double cpu_time_used; 
+  clock_t start, end;
+  double cpu_time_used;
   //---------------------------------------------------------------------------
   // Implementation
   //---------------------------------------------------------------------------
@@ -52,44 +52,43 @@ void ks_implicitTimeSolve(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   while (newtonFlag == 0){
     start=clock();
     ks_totalResidual(ykflow, multiquation, primal, residual, reduced, innert);
-    ks_totaldRdU(ykflow, multiquation, primal, dRdU, reduced, innert);    
+    ks_totaldRdU(ykflow, multiquation, primal, dRdU, reduced, innert);
     //-------------------------------------------------------------------------
     // Calculate the l2norm to check the progress of the newton iteration
     //-------------------------------------------------------------------------
     VecDot(residual, residual, &l2norm);
     newtCounter++; //Make sure it's converging and everything you  know
-    if (newtCounter > 10){ //error management                               
+    if (newtCounter > 10){ //error management
       printf("NOT CONVERGING: IT'S TAKING A LONG TIME TO CONVERGE, YUKI!\n");
-      exit(EXIT_FAILURE);         
+      exit(EXIT_FAILURE);
     }
     iterationCount++;
-    if (sqrt(l2norm) < pow(10, -9)) //Check 
+    if (sqrt(l2norm) < pow(10, -9)) //Check
       newtonFlag = 1;               //If so, the set the flag to break loop
     //-------------------------------------------------------------------------
     // Perform Newton Solve
     //-------------------------------------------------------------------------
     KSPSetOperators(ksp, dRdU, dRdU);
-    KSPSetTolerances(ksp, rtol, abstol, dtol, maxits);                         
-    KSPSetType(ksp, KSPGMRES);                                    
-    KSPSetFromOptions(ksp);    
-    KSPGetPC(ksp, &pc); //Check signs of A and b.                              
+    KSPSetTolerances(ksp, rtol, abstol, dtol, maxits);
+    KSPSetType(ksp, KSPGMRES);
+    KSPSetFromOptions(ksp);
+    KSPGetPC(ksp, &pc); //Check signs of A and b.
     PCSetType(pc, PCBJACOBI); //KSPGetTolerance. <--- check this to see if
-    VecScale(residual, -1); //Check to certain magnitude.                      
+    VecScale(residual, -1); //Check to certain magnitude.
     KSPSolve(ksp, residual, residual);
     KSPGetIterationNumber(ksp, &iterNum);
     //-------------------------------------------------------------------------
-    // Update the Current Solution                                          
+    // Update the Current Solution
     //-------------------------------------------------------------------------
-    array2Vec(_eqnOfInterest, primal->self, objectVec);
+    array2Vec(_eqnOfInterest, primal->self, primal->self->space, objectVec);
     VecAXPY(objectVec, 1, residual);
-    vec2Array(_eqnOfInterest, primal->self, objectVec);
+    vec2Array(_eqnOfInterest, primal->self, primal->self->space, objectVec);
     end=clock();
-    cpu_time_used = ((double) (end-start)) /CLOCKS_PER_SEC; 
+    cpu_time_used = ((double) (end-start)) /CLOCKS_PER_SEC;
     printf("n = %d, ε = %0.16e, t(s) =  %0.13f\n", iterationCount, sqrt(l2norm), cpu_time_used);
   }
   MatDestroy(&dRdU);
   VecDestroy(&residual);
   VecDestroy(&objectVec);
   KSPDestroy(&ksp);
-}                                                                           
-  
+}

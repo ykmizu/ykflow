@@ -23,10 +23,14 @@ void createSystem(Universe equation, Galaxy *state){
 }
 
 void copySystem(Universe equation, Galaxy *state, Galaxy *stateCopy){
+  int i;
   stateCopy->quad.n = state->quad.n;
   stateCopy->time.count = state->time.count;
   stateCopy->time.t_f = state->time.t_f;
   stateCopy->time.t_0 = state->time.t_0;
+  initArrayInt(&stateCopy->time.tNode_i, state->time.tNode_i.count);
+  for (i=0; i<state->time.tNode_i.count; i++)
+    stateCopy->time.tNode_i.array[i] = state->time.tNode_i.array[i];
   copyMesh(&state->space, &stateCopy->space);
   assignBasisQuad(stateCopy);
   initializeStates(equation, stateCopy);

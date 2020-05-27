@@ -14,6 +14,7 @@
 #include "xf_Residual.h"
 #include "xf_Math.h"
 #include "xf_DataMath.h"
+#include <math.h>
 #include "xf_Output.h"
 #include "xf_Solver.h"
 #include "xf_SolverUnsteady.h"
@@ -67,6 +68,10 @@ typedef struct yk_Xflow{
 //-----------------------------------------------------------------------------
 yk_PrimalSolver* new_Xflow();
 
+void yk_findElementOfTarget(yk_PrimalSolver *ykflow, Multiverse *multiquation,
+			    Cluster *primal, PetscInt *spatialSet,
+			    Is_it *reduced);
+
 void yk_findBoundarySeeds(yk_PrimalSolver *ykflow, Multiverse *multiquaiton,
 			  Cluster *primal, int nSampNodes, int *numSeeds,
 			  int *nodeSet);
@@ -86,8 +91,8 @@ void yk_xflow_dfunctiondu(yk_PrimalSolver *ykflow, Multiverse *multiqation,
 			  Cluster *primal, Mat matObj, Is_it *reduced,
 			  int timeNode);
 
-void yk_findAdjacentElems(yk_PrimalSolver *ykflow, Cluster *primal, int elem,
-			  int *nodeSet);
+void yk_findAdjacentElems(yk_PrimalSolver *ykflow, Cluster *primal, PetscInt **mshOs, PetscInt **temporalSet,
+ 			  Is_it *reduced);
 
 void yk_uploadStateCalcSpatialAverageOutput(yk_PrimalSolver *ykflow,
 					    Multiverse *multiquation,

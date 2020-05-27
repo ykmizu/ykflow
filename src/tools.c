@@ -64,6 +64,98 @@
 /* } */
 
 
+void yk_kkron(Mat A, Mat B, Mat *KKRON){
+  int i,j;
+  PetscInt A_row, A_col;
+  PetscInt B_row, B_col;
+  PetscInt *A_rowIndex, *A_colIndex;
+  PetscScalar * A_array;
+  MatGetSize(A, &A_row, &A_col);
+
+  MatGetSize(B, &B_row, &B_col);
+
+  A_rowIndex = (PetscInt *) malloc (A_row*sizeof(PetscInt));
+  A_colIndex = (PetscInt *) malloc (A_col*sizeof(PetscInt));
+  A_array = (PetscScalar *) malloc (A_row*A_col*sizeof(PetscScalar));
+  PetscScalar alpha;
+  Mat *tempY = (Mat *) malloc (A_row*A_col*sizeof(Mat));
+  Mat goldenOne;
+  //---------------------------------------------------------------------------
+  //
+  //---------------------------------------------------------------------------
+  for (i=0; i< A_row; i++)
+    A_rowIndex[i] = i;
+  for (i=0; i<A_col; i++)
+    A_colIndex[i] = i;
+  MatGetValues(A, A_row, A_rowIndex, A_col, A_colIndex, A_array);
+  for (i=0; i<A_row; i++){
+    for (j=0; j<A_col; j++){
+      MatDuplicate(B,MAT_COPY_VALUES, &tempY[i*A_col+j]);
+      MatScale(tempY[i*A_col+j], A_array[i*A_col+j]);
+    }
+  }
+
+  MatCreateNest(PETSC_COMM_SELF, A_row, NULL, A_col,NULL, tempY, KKRON);
+  MatConvert(*KKRON, MATSEQAIJ, MAT_INPLACE_MATRIX, KKRON);
+  free(A_rowIndex);
+  free(A_colIndex);
+  free(A_array);
+  for (i=0; i<A_row; i++)
+    for (j=0; j<A_col; j++)
+      MatDestroy(&tempY[i*A_col+j]);
+  free(tempY);
+}
+
+
+void yk_kkron_DENSE(Mat A, Mat B, Mat *KKRON){
+  int i,j;
+  PetscInt A_row, A_col;
+  PetscInt B_row, B_col;
+  PetscInt *A_rowIndex, *A_colIndex;
+  PetscScalar * A_array;
+  MatGetSize(A, &A_row, &A_col);
+  MatType   jtype;
+  MatGetSize(B, &B_row, &B_col);
+
+  A_rowIndex = (PetscInt *) malloc (A_row*sizeof(PetscInt));
+  A_colIndex = (PetscInt *) malloc (A_col*sizeof(PetscInt));
+  A_array = (PetscScalar *) malloc (A_row*A_col*sizeof(PetscScalar));
+  PetscScalar alpha;
+  Mat *tempY = (Mat *) malloc (A_row*A_col*sizeof(Mat));
+  Mat goldenOne;
+  Mat temp;
+  //---------------------------------------------------------------------------
+  //
+  //---------------------------------------------------------------------------
+  for (i=0; i< A_row; i++)
+    A_rowIndex[i] = i;
+  for (i=0; i<A_col; i++)
+    A_colIndex[i] = i;
+  MatGetValues(A, A_row, A_rowIndex, A_col, A_colIndex, A_array);
+  for (i=0; i<A_row; i++){
+    for (j=0; j<A_col; j++){
+      MatDuplicate(B,MAT_COPY_VALUES, &tempY[i*A_col+j]);
+      MatScale(tempY[i*A_col+j], A_array[i*A_col+j]);
+    }
+  }
+
+  MatCreateNest(PETSC_COMM_SELF, A_row, NULL, A_col,NULL, tempY, &temp);
+  /* MatGetType(temp,&jtype); */
+  MatConvert(temp, MATSEQAIJ, MAT_INITIAL_MATRIX, KKRON);
+  MatConvert(*KKRON, MATSEQDENSE, MAT_INPLACE_MATRIX, KKRON);
+  free(A_rowIndex);
+  free(A_colIndex);
+  free(A_array);
+  for (i=0; i<A_row; i++)
+    for (j=0; j<A_col; j++)
+      MatDestroy(&tempY[i*A_col+j]);
+  free(tempY);
+  MatDestroy(&temp);
+}
+
+
+
+
 void yk_kron(Mat A,  Vec B, double ***kron){
   PetscInt i, j, k; //initialization for iteration
 
@@ -190,47 +282,134 @@ void getSegArray(Universe equation, Galaxy *U, double *R, int seg, Vec vp){
 
 
 
-void array2Vec(Universe eqn, Galaxy *U, Vec vcon){
-  int i, j, k;
+/* void array2Vec(Universe eqn, Galaxy *U, Vec vcon){ */
+/*   int i, j, k; */
+/*   PetscInt location; */
+/*   for (i=0; i<U->space.elem.count; i++){ */
+/*     for (j=0; j<U->basis.nodes; j++){ */
+/*       for (k=0; k<eqn.numStates; k++){ */
+/* 	location = (i*eqn.numStates*U->basis.nodes)+(j*eqn.numStates)+k; */
+/* 	VecSetValues(vcon, 1, &location, */
+/* 		     &U->solution[k].array[i*U->basis.nodes+j], */
+/* 		     INSERT_VALUES); */
+/*       } */
+/*     } */
+/*   } */
+/* } */
+
+void array2Vec(Universe equation, Galaxy *state, Mesh mesh, Vec vcon){
+  //------------------------------------//-------------------------------------
+  // Variables here                     // Comments section
+  //------------------------------------//-------------------------------------
+  int i, j, k;                       //initialization for iteration
+  int elem_i; //Save informatiom about the element that we want to keep
   PetscInt location;
-  for (i=0; i<U->space.elem.count; i++){
-    for (j=0; j<U->basis.nodes; j++){
-      for (k=0; k<eqn.numStates; k++){
-	location = (i*eqn.numStates*U->basis.nodes)+(j*eqn.numStates)+k;
+  //---------------------------------------------------------------------------
+  // Implementation
+  //---------------------------------------------------------------------------
+  // Extracting what we want from the ykflow array and placing in Vec format
+  for (i=0; i<mesh.elem.count; i++){ //Number of elements to get
+    elem_i = mesh.elem.array[i];
+    for (j=0; j<state->basis.nodes; j++){
+      for (k=0; k<equation.numStates;k++){
+	location = (i*equation.numStates*state->basis.nodes)+
+	  (j*equation.numStates)+k;
+
 	VecSetValues(vcon, 1, &location,
-		     &U->solution[k].array[i*U->basis.nodes+j],
+		     &state->solution[k].array[elem_i*state->basis.nodes+j],
 		     INSERT_VALUES);
       }
     }
   }
   VecAssemblyBegin(vcon);
   VecAssemblyEnd(vcon);
+
 }
 
-void vec2Array(Universe eqn, Galaxy *U, Vec vcon){
-  int i;
-  int systemSize = U->space.node.count*eqn.numStates;
-  PetscInt *index = (PetscInt *) malloc (systemSize*sizeof(PetscInt));
+
+
+/* void vec2Array(Universe eqn, Galaxy *U, Vec vcon){ */
+/*   int i; */
+/*   int basis = U->basis.nodes; */
+/*   int states = eqn.numStates; */
+/*   int elemStates = basis*states; */
+/*   int systemSize = U->space.node.count*eqn.numStates; */
+/*   PetscScalar *values = (PetscScalar *)malloc(systemSize*sizeof(PetscScalar)); */
+
+/*   int *ptr_index; */
+/*   int *ptr_values; */
+
+/*   numElems = U->systemSize/elemStates; */
+/*   for (i=0; i<numElems; i++){ */
+/*     ptr_values = values+ U->index[i*elemStates]; */
+/*     VecGetValues(vcon, elemStates, ptr_index, ptr_values); */
+/*   } */
+/* } */
+void vec2Array(Universe equation, Galaxy *state, Mesh mesh, Vec vcon){
+  int i, j;
+  int elem_i;
+  int basis = state->basis.nodes;
+  int elemSize = basis*equation.numStates;
+  int *ptr_values;
+  int *indexElem = (int *) malloc (elemSize*sizeof(int*));
+  PetscInt systemSize = state->space.node.count*equation.numStates;
   PetscScalar *values = (PetscScalar *)malloc(systemSize*sizeof(PetscScalar));
-  for (i=0; i<systemSize; i++)
-    index[i] = i;
-  VecGetValues(vcon, systemSize, index, values); //extract value to S
-  data2Array(eqn, U, values);
-  free(index);
+  memset(values, 0, systemSize*sizeof(PetscScalar));
+  for (i=0; i<mesh.elem.count; i++){
+    for (j=0; j<elemSize; j++)
+      indexElem[j] = i*elemSize+j;
+
+    elem_i = mesh.elem.array[i];
+    ptr_values = values + elem_i*elemSize;
+    VecGetValues(vcon, elemSize, indexElem, ptr_values);
+  }
+
+  data2Array(equation, state, values);
+  free(indexElem);
   free(values);
 }
+
+
+
+/* void vec2Array(Universe eqn, Galaxy *U, Mesh mesh, Vec vcon){ */
+/*   /\* VecGetValues(vcon, U->systemSize *\/ */
+
+
+
+/*   int i; */
+/*   int systemSize = U->space.node.count*eqn.numStates; */
+/*   PetscInt *index = (PetscInt *) malloc (systemSize*sizeof(PetscInt)); */
+/*   PetscScalar *values = (PetscScalar *)malloc(systemSize*sizeof(PetscScalar)); */
+/*   for (i=0; i<systemSize; i++) */
+/*     index[i] = i; */
+
+/*   VecGetValues(vcon, systemSize, index, values); //extract value to S */
+
+
+
+/*   for (i=0; i<systemSize; i++) */
+/*     printf("kaboo %g\n", values[i]); */
+/*   getchar(); */
+
+
+/*   data2Array(eqn, U, values); */
+/*   free(index); */
+/*   free(values); */
+/* } */
 
 
 
 void data2Array(Universe eqn, Galaxy *U, double *u){
   int i, j, k;
   int location;
+  int elem_i;
   for (i=0; i<U->space.elem.count; i++){
     for (j=0; j<U->basis.nodes; j++){
       for (k=0; k<eqn.numStates; k++){
+	elem_i = U->space.elem.array[i];
 	location = (i*eqn.numStates*U->basis.nodes)+(j*eqn.numStates)+k;
         //location = (i*eqn.numStates+j)*U->basis.nodes+k;
-        U->solution[k].array[i*U->basis.nodes+j] = u[location];
+        U->solution[k].array[elem_i*U->basis.nodes+j] = u[location];
       }
     }
   }
@@ -279,7 +458,7 @@ void ks_Mat2MatBlock(Mat A, PetscInt m, PetscInt idxm[], PetscInt n,
 
 void ks_MatRow2Vec(Mat M, PetscInt m, PetscInt idxm[], Vec V, PetscInt rowi,
                    InsertMode iora){
-  PetscScalar V_i[m];
+  PetscScalar *V_i = (PetscScalar *) malloc (m*sizeof(PetscScalar));
   //----------------------------------------------------------------------------
   // Implementation
   //----------------------------------------------------------------------------
@@ -287,11 +466,13 @@ void ks_MatRow2Vec(Mat M, PetscInt m, PetscInt idxm[], Vec V, PetscInt rowi,
   VecSetValues(V, m, idxm, V_i, iora);
   VecAssemblyBegin(V);
   VecAssemblyEnd(V);
+
+  free(V_i);
 }
 
 void ks_MatCol2Vec(Mat M, PetscInt m, PetscInt idxm[], Vec V, PetscInt coli,
                    InsertMode iora){
-  PetscScalar V_i[m];
+  PetscScalar *V_i = (PetscScalar *) malloc (m*sizeof(PetscScalar));
   //---------------------------------------------------------------------------
   // Implementation
   //---------------------------------------------------------------------------
@@ -299,27 +480,29 @@ void ks_MatCol2Vec(Mat M, PetscInt m, PetscInt idxm[], Vec V, PetscInt coli,
   VecSetValues(V, m, idxm, V_i, iora);
   VecAssemblyBegin(V);
   VecAssemblyEnd(V);
+  free(V_i);
 }
 
 void ks_Vec2MatCol(Mat M, PetscInt m, PetscInt idxm[], PetscInt col, Vec V,
                    InsertMode iora){
-  PetscScalar V_i[m];
+  PetscScalar *V_i = (PetscScalar *) malloc (m*sizeof(PetscScalar));
   //---------------------------------------------------------------------------
   // Implementation
   //---------------------------------------------------------------------------
   VecGetValues(V, m, idxm, V_i); //extract value to S
   MatSetValues(M, m, idxm,  1, &col, V_i, iora);
+  free(V_i);
 }
 
 void ks_Vec2MatRow(Mat M, PetscInt m, PetscInt idxm[], PetscInt row, Vec V,
                    InsertMode iora){
-  PetscScalar V_i[m];
-
+  PetscScalar *V_i = (PetscScalar *) malloc (m*sizeof(PetscScalar));
   //---------------------------------------------------------------------------
   // Implementation
   //---------------------------------------------------------------------------
   VecGetValues(V, m, idxm, V_i);
   MatSetValues(M, 1, &row, m, idxm, V_i, iora);
+  free(V_i);
 }
 
 int *createMeshMap(Mesh *original){

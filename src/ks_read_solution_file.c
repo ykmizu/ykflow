@@ -1,4 +1,3 @@
-
 #include "ks_read_solution_file.h"
 //-----------------------------------------------------------------------------
 // Restrieves the solution file and extracts it to Utype solution.
@@ -7,6 +6,20 @@
 // Yukiko Shimizu
 // August 3, 2018
 //-----------------------------------------------------------------------------
+
+
+int ks_checkSolutionExist(Universe eqn, Galaxy *U, int node){
+  /* int i, j;             //initialization for iteration */
+  /* FILE* solution_file; */
+  /* char outputFile[1000]; */
+  /* sprinf(outputFile, "%s_%d.dat", U->id, node); */
+  /* if( access( outputFile, F_OK ) != -1 ) */
+  /*   return 1; */
+  /* else */
+  /*   return 0; */
+  /* return 0; */
+
+}
 
 void ks_printSolution(Universe eqn, Galaxy* U, int node){
   int i, j;             //initialization for iteration
@@ -17,6 +30,10 @@ void ks_printSolution(Universe eqn, Galaxy* U, int node){
   //---------------------------------------------------------------------------
   sprintf(outputFile, "%s_%d.dat", U->id, node);
   solution_file = fopen(outputFile, "w+");
+  if (solution_file == NULL){
+    perror("Error");
+    exit(EXIT_FAILURE);
+  }
   for (i=0; i<U->space.node.count; i++){
     fprintf(solution_file, "%0.16f", U->solution[0].array[i]);
     for (j=1; j<eqn.numStates; j++)
@@ -46,11 +63,14 @@ void ks_removeSolution(Universe eqn, Galaxy *U, int node){
   remove(outputFile);
 }
 
+
+
+
 void ks_readSolution(Universe eqn, Galaxy* U, int node){
   int i;                //initialization for iteration
   FILE* solutionFile;
   char outputFile[1000];
-  char buffer[1000000];
+  char buffer[1000];
   int count = 0;
   char *current_line;
   char *lines = NULL;
@@ -117,36 +137,78 @@ void yk_printLSSInitialCon(int size, double R[], int out_i){
   }
 }
 
-void ks_readMatrix(char *filename, int row, Mat *sResidual){
-  int i, j;
+Mat * ks_readMatrix(char *filename, int systemSize, int nTime,
+		    Mat *resSnapshot, int *RJLinesCount, Is_it *reduced){
+  int i, j, k;
   FILE *residualSnapshotFile;
   char *ith_line;
   int count = 0;
   double *snapshotArray;
-  int RJLinesCount;
+  Mat *sResidual_mu;
+  PetscScalar *bigAssSnapshotArray = NULL;
+  PetscInt counter = 0;
+  int counter0;
+  //---------------------------------------------------------------------------
+  // Implementation
+  //---------------------------------------------------------------------------
+  /* for (i=0; i<reduced->numParamSet; i++){ */
+  //Open up the residual snapshot file to view
   residualSnapshotFile = fopen(filename, "r");
-  yk_fgets(residualSnapshotFile, row, &snapshotArray, &RJLinesCount);
+  yk_fgets(residualSnapshotFile, systemSize*nTime, &snapshotArray,
+	   RJLinesCount);
+
   fclose(residualSnapshotFile);
+  PetscMalloc1(*RJLinesCount, &sResidual_mu);
 
-  MatCreate(PETSC_COMM_SELF, sResidual);
-  MatSetSizes(*sResidual, row, RJLinesCount, row, RJLinesCount);
-  MatSetType(*sResidual, MATSEQDENSE);
-  MatSetUp(*sResidual);
 
-  for (i=0; i<RJLinesCount; i++){
-    for (j=0; j<row; j++)
-      MatSetValue(*sResidual, j, i, snapshotArray[i*row+j], INSERT_VALUES);
+  MatCreate(PETSC_COMM_SELF, resSnapshot);
+  MatSetSizes(*resSnapshot,  systemSize, nTime*(*RJLinesCount), systemSize,
+	      nTime*(*RJLinesCount));
+  MatSetType(*resSnapshot, MATSEQDENSE);
+  MatSetUp(*resSnapshot);
+
+
+  for (i=0; i<*RJLinesCount; i++){
+    MatCreate(PETSC_COMM_SELF, &sResidual_mu[i]);
+    MatSetSizes(sResidual_mu[i], systemSize, nTime, systemSize, nTime);
+    MatSetType(sResidual_mu[i], MATSEQDENSE);
+    MatSetUp(sResidual_mu[i]);
+
+    for (j=0; j<nTime; j++){
+      for (k=0; k<systemSize; k++){
+	MatSetValue(sResidual_mu[i], k, j, snapshotArray[(i*nTime+j)*systemSize+k],
+		    INSERT_VALUES);
+	MatSetValue(*resSnapshot, k, i*nTime+j, snapshotArray[(i*nTime+j)*systemSize+k],
+		    INSERT_VALUES);
+      }
+    }
+    MatAssemblyBegin(sResidual_mu[i], MAT_FINAL_ASSEMBLY);
+    MatAssemblyEnd(sResidual_mu[i], MAT_FINAL_ASSEMBLY);
+
+
+    /* counter0 = counter; */
+    /* counter += systemSize*nTime; */
+    /* bigAssSnapshotArray = yk_reallocPetscScalar(bigAssSnapshotArray,counter); */
+    /* for (j=counter0; j<counter; j++) */
+    /*   bigAssSnapshotArray[j] = snapshotArray[j-counter0]; */
   }
-  MatAssemblyBegin(*sResidual, MAT_FINAL_ASSEMBLY);
-  MatAssemblyEnd(*sResidual, MAT_FINAL_ASSEMBLY);
   free(snapshotArray);
+
+  /* for (j=0; j<counter/systemSize; j++){ */
+  /*   for (k=0; k<systemSize; k++) */
+  /*     MatSetValue(*resSnapshot, k, j, bigAssSnapshotArray[j*systemSize+k], */
+  /* 		  INSERT_VALUES); */
+  /* } */
+  MatAssemblyBegin(*resSnapshot, MAT_FINAL_ASSEMBLY);
+  MatAssemblyEnd(*resSnapshot, MAT_FINAL_ASSEMBLY);
+  return sResidual_mu;
 }
 
 void yk_fgets(FILE *stream, int row, double **snapshotArray, int *count){
   int i;
   int bufferSize = 0;
   int endOfLine = 0;
-  char input[100000] = {0};
+  char input[1000000] = {0};
   char *targetBuffer = (char *) malloc (sizeof(char));
   //---------------------------------------------------------------------------
   // Initialization
@@ -165,8 +227,11 @@ void yk_fgets(FILE *stream, int row, double **snapshotArray, int *count){
       *snapshotArray=
 	(double *)realloc(*snapshotArray,(*count+1)*row*sizeof(double));
       (*snapshotArray)[*count*row] = atof(strtok(targetBuffer, " "));
-      for (i=1; i<row; i++)
+
+      for (i=1; i<row; i++){
 	(*snapshotArray)[*count*row+i] = atof(strtok(NULL, " "));
+      }
+
       bufferSize = 0;
       targetBuffer[0] = '\0';
       (*count)++;
@@ -174,12 +239,14 @@ void yk_fgets(FILE *stream, int row, double **snapshotArray, int *count){
   }
   free(targetBuffer);
 }
-/*     //if (strchr(input, "\n") != NULL) */
 
 
-/* } */
+/*     //if (strchr(input, "\n") != NULL)
 
-/*
+
+}
+
+
 void ks_read_solution(Utype* U, int Umode, int node){
   int i;
   double DNU;
@@ -206,7 +273,6 @@ void ks_read_solution(Utype* U, int Umode, int node){
   }
   fclose(solution_file);
 }
-*/
 /*
 void ks_read_solution(Utype* U, int node){
   int i;                             //initialization for iteration

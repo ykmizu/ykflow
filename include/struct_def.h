@@ -1,7 +1,7 @@
 
 #ifndef STRUCT_DEF_H_
 #define STRUCT_DEF_H_
-
+#include "xf_String.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -69,6 +69,9 @@ typedef struct{
   intArray node;           //Contains information for the nodes
   double x_0;              //Initial left boundary spatial value
   double x_f;              //Final right boundary spatial value
+  int *i_ElemCom;          //Gives the location of the elem in compressed form
+  PetscInt *index;
+  int systemSize;
 }Mesh;
 
 typedef struct{
@@ -81,6 +84,8 @@ typedef struct{
   double t_0;              //Local initial time for the currenttime window
   double t_f;              //Local final time for the the current time window
   int window_i;
+  intArray tNode_i;
+  intArray time_Os;
 }Time;
 
 //-----------------------------------------------------------------------------
@@ -100,6 +105,7 @@ typedef struct { //the command module
   BasisFunctions basis;     //Basis functions neccesary for DG methods
   GuassianQuad quad;        //Quadrature to solve integrals
   char id[1000];            //Name for this set of solutions
+  char jobName[1000];
   Array* solution;
   int beta;                //if pde or ode requires any constant as part of eq
   Mat Mij;
@@ -140,19 +146,29 @@ typedef struct{
   double *dparams;
   double *paramMeshGrid;
   int nSampleNodes;  //number of sample nodes
+  double  pSampleElems; //Percentage of elems to keep
+  int nSampleSpace;
+  int nSampleTime;
+  char resBuffer[50];
+  Mat spaceZ;
   //----
   PetscScalar eBasisTime;
   PetscScalar eBasisSpace;
+  PetscScalar eReBasisSpace;
+  PetscScalar eReBasisTime;
   PetscInt nBasisFuncs;
   PetscInt nBasisTime;
   PetscInt nSubWindows;
   //----
+  intArray reducedTime;
+  intArray reducedTime_Os;
   Vec init;
   PetscInt nBasisFuncs_w_i;
   PetscInt *nBasisTime_w_mu;
   int nBasisFuncsRJ;
   int nSnapshotsRJ;
-  Mesh reducedMesh;       //sample nodes+ nodes within the same element
+  Mesh reducedMesh;       //sample nodes+ nodes within the same element Xs
+  Mesh reducedMesh_Os;    //sample nodes and surrounding nodes Os
   Mat rOBStateRed;        //number of rows is the sixe of reducedMesh
   Mat rOBStateBar;        //Number of rows is the size of primalApprox
   Mat rOBResidual;
@@ -165,9 +181,13 @@ typedef struct{
   Mat B;   //Ofline Matrix
   Mat rOBState;           //if 1, then rOBState, A, and B should be filled up
   Mat ST_rOBState;
+  Mat ST_rOBStateBar;
+  Mat ST_rOBResidual;
   Mat *ST_rOBState_i;
+  Mat *ST_rOBStateBar_i;
   PetscInt w_i; //Window number ID
   PerWindow **win_i;
+  Mat Z_Os;
 }Is_it;
 
 
@@ -186,7 +206,7 @@ typedef struct{
 }Cluster;
 
 typedef struct {
-  char nameEqn[10000];
+  char nameEqn[xf_MAXSTRLEN];
   double *c;
   int numStates;
   int numParams;

@@ -6,7 +6,7 @@ void ks_adjoint_MATVEC(yk_PrimalSolver *ykflow, Multiverse *multiquation,
 		       Cluster *primal, double *R, double *Rnew,
 		       Is_it *reduced){
   //------------------------------------//-------------------------------------
-  // Variables here                     // Comments section                  
+  // Variables here                     // Comments section
   //------------------------------------//-------------------------------------
   int i, j;                             // Intialization for iteration
   double wCon;
@@ -25,7 +25,7 @@ void ks_adjoint_MATVEC(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   Vec f;
   Vec wp;
   Universe _eqnOfInterest;  //Current universe to look at given Reduced info
-  Galaxy *_solOfInterest; 
+  Galaxy *_solOfInterest;
   Galaxy *_stateOfInterest;
   Cluster *Psi2 = (Cluster *) malloc (sizeof(Cluster));
   Cluster *Psi1 = (Cluster *) malloc (sizeof(Cluster));
@@ -36,7 +36,7 @@ void ks_adjoint_MATVEC(yk_PrimalSolver *ykflow, Multiverse *multiquation,
     _eqnOfInterest = multiquation->equationReduced;
     _solOfInterest = primal->reduced;
   }else{
-    _eqnOfInterest = multiquation->equationLSS; //primal can be 
+    _eqnOfInterest = multiquation->equationLSS; //primal can be
     _solOfInterest = primal->self;
   }
   if (reduced->hrom == 1)
@@ -50,8 +50,8 @@ void ks_adjoint_MATVEC(yk_PrimalSolver *ykflow, Multiverse *multiquation,
     systemIndex[i] = i;
   vpArray = (double *) malloc (systemSize*sizeof(double));
   wpArray = (double *) malloc (systemSize*sizeof(double));;
-  VecCreateSeq(PETSC_COMM_SELF, systemSize, &vp);                
-  VecCreateSeq(PETSC_COMM_SELF, systemSize, &f);                 
+  VecCreateSeq(PETSC_COMM_SELF, systemSize, &vp);
+  VecCreateSeq(PETSC_COMM_SELF, systemSize, &f);
   VecCreateSeq(PETSC_COMM_SELF, systemSize, &wp);
   //---------------------------------------------------------------------------
   // Implementation
@@ -94,7 +94,7 @@ void ks_adjoint_MATVEC(yk_PrimalSolver *ykflow, Multiverse *multiquation,
     getSegArray(_eqnOfInterest, Psi2->self, R, i, vp);
     ks_function(ykflow, multiquation,Psi2, reduced, f, left); //left +1 or lef
     projection(_eqnOfInterest, f, vp);
-    vec2Array(_eqnOfInterest, Psi2->self, vp);
+    vec2Array(_eqnOfInterest, Psi2->self, Psi2->self->space, vp);
     ks_printSolution(_eqnOfInterest, Psi2->self, left);
     ks_ApplyTimeScheme(ykflow, multiquation, Psi2, reduced);
     //-------------------------------------------------------------------------
@@ -115,7 +115,7 @@ void ks_adjoint_MATVEC(yk_PrimalSolver *ykflow, Multiverse *multiquation,
     wCon = -(-primal->self->beta*(aveSpace-_stateOfInterest->j_bar)
 	     /(primal->self->time.globalT_f*denom*denom));
     VecAXPY(wp, wCon, f);
-    vec2Array(_eqnOfInterest, Psi1->self, wp);
+    vec2Array(_eqnOfInterest, Psi1->self, Psi1->self->space, wp);
     ks_printSolution(_eqnOfInterest, Psi1->self, right);
     ks_ApplyTimeScheme(ykflow, multiquation, Psi1, reduced);
     //-------------------------------------------------------------------------
@@ -123,7 +123,7 @@ void ks_adjoint_MATVEC(yk_PrimalSolver *ykflow, Multiverse *multiquation,
     //-------------------------------------------------------------------------
     if (i<reduced->nTimeSegs - 1){
       ks_readSolution(_eqnOfInterest, Psi2->self, right);
-      array2Vec(_eqnOfInterest, Psi2->self, vp);
+      array2Vec(_eqnOfInterest, Psi2->self, Psi2->self->space,  vp);
       ks_function(ykflow, multiquation, Psi2, reduced, f, right);
       projection(_eqnOfInterest, f, vp);
       VecGetValues(vp, systemSize, systemIndex, vpArray);
@@ -135,7 +135,7 @@ void ks_adjoint_MATVEC(yk_PrimalSolver *ykflow, Multiverse *multiquation,
     // Residual Calculation for Rv
     //-------------------------------------------------------------------------
     ks_readSolution(_eqnOfInterest, Psi1->self, left);
-    array2Vec(_eqnOfInterest, Psi1->self, wp);
+    array2Vec(_eqnOfInterest, Psi1->self, Psi1->self->space, wp);
     ks_function(ykflow, multiquation, Psi1, reduced,  f, left);
     projection(_eqnOfInterest, f, wp);
         VecGetValues(wp, systemSize, systemIndex, wpArray);

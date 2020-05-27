@@ -50,7 +50,8 @@ typedef void (*ptrResidual)(yk_PrimalSolver*, Multiverse *, Cluster*, Vec,
 			    Mat, Is_it *,int);
 typedef void (*ptrFomName)(yk_PrimalSolver *, Universe, Is_it *, int, char *);
 
-typedef void (*ptrAdjacentElem)(yk_PrimalSolver*, Cluster *, int, int*);
+typedef void (*ptrAdjacentElem)(yk_PrimalSolver*, Cluster *, PetscInt **,
+				PetscInt **,Is_it *);
 typedef void (*ptrSpatialAveOutput)(yk_PrimalSolver *, Multiverse *, Galaxy *,
 				    double *,int);
 typedef void (*ptrSpatialdJdU)(yk_PrimalSolver *, Multiverse *, Galaxy *, int,
@@ -65,12 +66,16 @@ typedef void (*ptrAnyFunction)(yk_PrimalSolver *, Multiverse *, Galaxy *, Vec,
 
 typedef int (*ptrGetMassCoef)(yk_PrimalSolver *, Galaxy *, Mat *, Is_it *);
 
+typedef void (*ptrTargetElem)(yk_PrimalSolver *, Multiverse *, Cluster *,
+			      PetscInt *, Is_it *);
+
 typedef struct yk_PrimalSolver{
   int numElemCol;
   void *solver;
   ptrFunction Function;
   ptrdFunctiondu dFunctiondu;
   ptrResidual Residual;
+  ptrTargetElem minElements;
   ptrBSeeds boundarySeeds;
   ptrAdjacentElem adjacentElems;
   ptrSpatialAveOutput aveSpatialOutput;
@@ -99,8 +104,8 @@ void yk_findBoundarySeeds1D(yk_PrimalSolver *ykflow, Multiverse *multiquation,
 			    Cluster *primal, int nSampNodes, int *numSeeds,
 			    int *nodeSet);
 
-void yk_findAdjacentElems1D(yk_PrimalSolver *ykflow, Cluster *primal, int elem,
-                            int *elemSet);
+/* void yk_findAdjacentElems1D(yk_PrimalSolver *ykflow, Cluster *primal, int elem, */
+/*                             int *elemSet); */
 
 void yk_ykflow_function(yk_PrimalSolver *ykflow, Multiverse* multiquation,
                         Cluster *primal, Vec vecObj, Is_it *reduced,

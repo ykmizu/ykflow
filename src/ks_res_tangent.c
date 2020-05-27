@@ -1,14 +1,14 @@
 #include "ks_res_tangent.h"
 //-----------------------------------------------------------------------------
 // Calculates the residual R  for tangent equation forleastsquaresshadowing
-//                                                                         
-// -   dv   ∂f                                                             
-// R = -- - -- v = 0  I think dfdu is a constant scalar term...            
-//     dt   ∂u                                                             
-//                                                                         
-// Yukiko Shimizu                                                          
-// June 21, 2016                                                  
-// Error Estimation for Choatic Systems                           
+//
+// -   dv   ∂f
+// R = -- - -- v = 0  I think dfdu is a constant scalar term...
+//     dt   ∂u
+//
+// Yukiko Shimizu
+// June 21, 2016
+// Error Estimation for Choatic Systems
 //-----------------------------------------------------------------------------
 
 void ks_res_tangent(yk_PrimalSolver *ykflow, Multiverse *multiquation,
@@ -24,23 +24,23 @@ void ks_res_tangent(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   //---------------------------------------------------------------------------
   elementSize = multiquation->equation.numStates*
     Psi2->state->basis.nodes;
-  if (reduced->reducedSolution == 1)                                     
-    _eqnOfInterest = multiquation->equationReduced;       
-  else                                                                    
+  if (reduced->reducedSolution == 1)
+    _eqnOfInterest = multiquation->equationReduced;
+  else
     _eqnOfInterest = multiquation->equationLSS;  //equaitonLSS ?
   systemSize = _eqnOfInterest.numStates*Psi2->self->space.node.count;
 
   VecCreateSeq(PETSC_COMM_SELF, systemSize, &v_petsc);
-  if (reduced->reducedSolution == 1)                                       
-    MatCreateSeqDense(PETSC_COMM_SELF, systemSize, systemSize, NULL, &dfdu); 
-  else       
+  if (reduced->reducedSolution == 1)
+    MatCreateSeqDense(PETSC_COMM_SELF, systemSize, systemSize, NULL, &dfdu);
+  else
     MatCreateSeqBAIJ(PETSC_COMM_SELF, elementSize, systemSize, systemSize, 4,
-		     NULL, &dfdu); 
+		     NULL, &dfdu);
 
   //---------------------------------------------------------------------------
   // C0nvert the current solution for v to Vector Petsc form
   //---------------------------------------------------------------------------
-  array2Vec(_eqnOfInterest, Psi2->self, v_petsc);  
+  array2Vec(_eqnOfInterest, Psi2->self, Psi2->self->space, v_petsc);
   //---------------------------------------------------------------------------
   // Calculation of the spatial residual
   //---------------------------------------------------------------------------
@@ -53,10 +53,10 @@ void ks_res_tangent(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   /*   ks_function(ykflow, Psi2, reduced, 1, dfds); */
   /*   VecAXPY(residual, -Psi2->self->beta, dfds); */
   /* } */
-  
+
   //---------------------------------------------------------------------------
   // Release and Destroy everything
   //---------------------------------------------------------------------------
-  MatDestroy(&dfdu);                                                       
+  MatDestroy(&dfdu);
   VecDestroy(&v_petsc);
 }

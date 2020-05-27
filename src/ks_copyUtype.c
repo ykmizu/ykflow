@@ -2,6 +2,7 @@
 #include "ks_copyUtype.h"
 
 void ks_copyUtype(Galaxy *U, Galaxy *Ucopy){
+  int i;
   strcpy(Ucopy->utypeId, U->utypeId);
   Ucopy->burnT_f = U->burnT_f;
   Ucopy->time_method = U->time_method;
@@ -20,7 +21,10 @@ void ks_copyUtype(Galaxy *U, Galaxy *Ucopy){
   Ucopy->basis.p = U->basis.p;
   Ucopy->basis.nodes = U->basis.nodes;
   Ucopy->quad.n = U->quad.n;
-
+  Ucopy->time.window_i = U->time.window_i;
+  /* initArrayInt(&Ucopy->time.tNode_i, U->time.tNode_i.count); */
+  /* for (i=0; i<U->time.tNode_i.count; i++) */
+  /*   Ucopy->time.tNode_i.array[i] = U->time.tNode_i.array[i]; */
 }
 
 void ks_copySolutions(Universe equation, Galaxy *U, Galaxy *Ucopy){

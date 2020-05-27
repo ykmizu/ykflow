@@ -7,19 +7,19 @@ void yk_estimateError(yk_PrimalSolver *ykflow, Multiverse *multiquation,
 		      Cluster *primal_h, Cluster *primal_H, Cluster *primal,
 		      Is_it *reduced){
   //------------------------------------//-------------------------------------
-  // Variables here                     // Comments section                 
+  // Variables here                     // Comments section
   //------------------------------------//-------------------------------------
-  int i, j;                             //initialization for iteration  
+  int i, j;                             //initialization for iteration
   int _size;
   int numfiles = primal->self->time.count/reduced->nTimeSegs;
-  int timeSolve = 1;                    //designates which BDF solver to use   
-  int left, right;                                                             
-  int systemReducedSize;                                                       
-  int hrom, IsItreduced;                                                       
-  char adjointName[1000];      
-  double timeFinal = primal->self->time.globalT_f; 
+  int timeSolve = 1;                    //designates which BDF solver to use
+  int left, right;
+  int systemReducedSize;
+  int hrom, IsItreduced;
+  char adjointName[1000];
+  double timeFinal = primal->self->time.globalT_f;
   double timeInitial = primal->self->time.globalT_0;
-  double timelength = (timeFinal-timeInitial)/reduced->nTimeSegs;              
+  double timelength = (timeFinal-timeInitial)/reduced->nTimeSegs;
   double delJ_psi= 0;
   double delJ_dpsi = 0;
   double delJ_dpsi_H1 = 0;
@@ -28,34 +28,34 @@ void yk_estimateError(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   double del_dpsi_H1 = 0;
   Vec residual, residualReduced;
   Vec residualMinv, residualSamples;
-  Vec psi, dpsi, dpsi_H1;                                                   
+  Vec psi, dpsi, dpsi_H1;
   Vec psifull, psihfinal, psihfinal_H1;
   Mat I_proj, I_inject, I_proj_H1, I_inject_H1;
   Mat Idel, Idel_H1, Imult;
   Mat MijBlock;
-  Universe _eqnOfInterest;              //Current universe                     
+  Universe _eqnOfInterest;              //Current universe
   Universe _eqnOfInterestFull = multiquation->equation;
   Galaxy *_solOfInterest;
   Galaxy *Psi1Full = (Galaxy *) malloc (sizeof(Galaxy));
-  Cluster *Psi1 = (Cluster *) malloc (sizeof(Cluster));                        
-  Psi1->self = (Galaxy *) malloc (sizeof(Galaxy));                             
+  Cluster *Psi1 = (Cluster *) malloc (sizeof(Cluster));
+  Psi1->self = (Galaxy *) malloc (sizeof(Galaxy));
   //---------------------------------------------------------------------------
-  // Malloc and initialize here                                             
+  // Malloc and initialize here
   //---------------------------------------------------------------------------
-  hrom = reduced->hrom;                                                  
-  IsItreduced = reduced->reducedSolution;                                    
-  if (reduced->reducedSolution == 1){   //Choose which kind of LSS system      
+  hrom = reduced->hrom;
+  IsItreduced = reduced->reducedSolution;
+  if (reduced->reducedSolution == 1){   //Choose which kind of LSS system
     _eqnOfInterest = multiquation->equationReduced;  //ROM version
-    _solOfInterest = primal->reduced;   //ROM version (ODE)                  
+    _solOfInterest = primal->reduced;   //ROM version (ODE)
     _size = reduced->nBasisFuncs;
-  }else{                                                                       
+  }else{
     _eqnOfInterest = multiquation->equationLSS; //primal can be be the
-    _solOfInterest = primal->self;      //Original LSS version (ODE)         
+    _solOfInterest = primal->self;      //Original LSS version (ODE)
     _size = primal_h->self->systemSize;
-  }                                                                            
+  }
   ks_copyUtype(primal->self, Psi1Full);
   createSystem(multiquation->equation, Psi1Full);
-  systemReducedSize = _eqnOfInterest.numStates; //Size of the LSS system       
+  systemReducedSize = _eqnOfInterest.numStates; //Size of the LSS system
   VecCreateSeq(PETSC_COMM_SELF, _size, &residualReduced); //Co
   VecCreateSeq(PETSC_COMM_SELF, primal_h->self->systemSize, &residual);
   VecCreateSeq(PETSC_COMM_SELF, primal_h->self->systemSize, &residualMinv);
@@ -69,7 +69,7 @@ void yk_estimateError(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   MatCreateSeqDense(PETSC_COMM_SELF, primal_h->self->basis.p+1,
   		    primal_h->self->basis.p+1, NULL, &Imult);
   //---------------------------------------------------------------------------
-  // Implementation                                                          
+  // Implementation
   //---------------------------------------------------------------------------
   reduced->hrom = 0;
   reduced->reducedSolution = 0;
@@ -133,7 +133,7 @@ void yk_estimateError(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   	if (ykflow->numElemCol == 3){
   	  MatBlockMult(primal_h->self->Mij, residual, residualMinv);
   	}else{
-  	  vec2Array(_eqnOfInterestFull, primal_h->self, residual);
+  	  vec2Array(_eqnOfInterestFull, primal_h->self, primal_h->self->space, residual);
   	  ykflow->multiplyByInvMass(ykflow, primal_h->self, residualMinv,
   				    reduced);
   	}
@@ -148,7 +148,7 @@ void yk_estimateError(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   	// Adjoint Manipulation
   	//---------------------------------------------------------------------
   	ks_readSolution(_eqnOfInterest, Psi1->self, j);
-  	array2Vec(_eqnOfInterest, Psi1->self, psi);
+  	array2Vec(_eqnOfInterest, Psi1->self, Psi1->self->space, psi);
 	if (IsItreduced == 1)
 	  MatMult(reduced->rOBState, psi, psifull);
 	else
@@ -168,7 +168,7 @@ void yk_estimateError(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   	VecDot(psi, residualReduced, &del_psi);            //Psi Error Estimate
 	VecDot(dpsi, residualReduced, &del_dpsi);      //delPsi Error Estimate
 	VecDot(dpsi_H1, residualReduced, &del_dpsi_H1);//delPsi h1 error estim
-	
+
   	if (j == left || j == right){
           del_psi *= primal->self->time.dt/2.0;
 	  del_dpsi *= primal->self->time.dt/2.0;
@@ -202,9 +202,9 @@ void yk_estimateError(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   reduced->delJ_dpsi = delJ_dpsi;
   reduced->delJ_dpsi_H1 = delJ_dpsi_H1;
   //---------------------------------------------------------------------------
-  // Destroy everything                                                        
+  // Destroy everything
   //---------------------------------------------------------------------------
-  destroySystem(multiquation->equation, Psi1Full);  
+  destroySystem(multiquation->equation, Psi1Full);
   VecDestroy(&residual);
   VecDestroy(&residualSamples);
   VecDestroy(&residualMinv);
@@ -215,8 +215,8 @@ void yk_estimateError(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   VecDestroy(&psihfinal);
   VecDestroy(&dpsi_H1);
   VecDestroy(&psihfinal_H1);
-  free(Psi1->self);                                                            
-  free(Psi1);                                                                  
+  free(Psi1->self);
+  free(Psi1);
   free(Psi1Full);
   MatDestroy(&I_proj);
   MatDestroy(&I_inject);
@@ -225,8 +225,8 @@ void yk_estimateError(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   MatDestroy(&Idel_H1);
   MatDestroy(&Idel);
   MatDestroy(&Imult);
-  if (ykflow->numElemCol == 3){ 
+  if (ykflow->numElemCol == 3){
     MatDestroy(&primal_h->self->Mij);
     MatDestroy(&MijBlock);
   }
-}   
+}

@@ -1,10 +1,10 @@
 
-
-
-
+//THIS IS THE RIGHT ONE FEB 6
 
 
 #include "yk_XFlow.h"
+#include <math.h>
+#include <stdio.h>
 
 //-----------------------------------------------------------------------------
 // Calls the xflow solver. ykflow solver inherits the xflow specific functions
@@ -22,8 +22,9 @@ yk_PrimalSolver* new_Xflow(){
   ykflow->Residual = yk_xflow_totalResidual;
   ykflow->FomName = yk_fomBuffer;
   ykflow->boundarySeeds = yk_findBoundarySeeds;
+  ykflow->minElements = yk_findElementOfTarget;
   ykflow->findMassCoefBDF = yk_getOffDiagonalJacobiansGroup;
-  /* ykflow->adjacentElems = yk_findAdjacentElems; */
+  ykflow->adjacentElems = yk_findAdjacentElems;
   /* ykflow->aveSpatialOutput = yk_uploadStateCalcSpatialAverageOutput; */
   /* ykflow->spatialdJdU = yk_uploadStateCalcSpatialdJdU; */
   /* ykflow->multiplyByInvMass = yk_MultInvMassMatrixArray; */
@@ -38,6 +39,206 @@ void delete_Xflow(yk_PrimalSolver *ykflow){
   free(ykflow);
 
 }
+
+//Also assigns the spatial elems to the xflow framework
+//X's are the targets and they go into the sample mesh part of the xflow
+//O's are the targets and surroundings that go in the ykflow framework
+void yk_findAdjacentElems(yk_PrimalSolver *ykflow, Cluster *primal,
+			  PetscInt ** mshOs, PetscInt **temporalSet, Is_it *reduced){
+  //------------------------------------//-------------------------------------
+  // Variables here                     // Comments section
+  //------------------------------------//-------------------------------------
+  int i, j, m;                             // initialization for iteration
+  int ierr;
+  int floorElem = 0;
+  int nFace;
+  int elemN;
+  int newElem;
+  int groupN;
+  enum xfe_Bool Found;
+  xf_JacobianMatrix *dRdU;              // structure for jacobian matrix
+  yk_Xflow *xflow = (yk_Xflow *) ykflow->solver; //Set pointer to xflow
+  int grpnum;
+  int nn = 1208;
+  int pelem;
+  int egR, eR, faceR;
+  int totElem =  primal->self->space.elem.count;
+  int *keepTrack = (int *) malloc (totElem*sizeof(int));
+  int pie;
+  int count = reduced->reducedMesh.elem.count;
+  int counter = 0;
+  int sysSize = primal->self->systemSize;
+  int numBasis = primal->self->basis.nodes;
+  int elemSize = numBasis * 4;
+  Mat timeIdentity;
+  int sysTime = primal->self->time.count;
+  int timeCount = reduced->nSampleTime-1;
+  MatCreate(PETSC_COMM_SELF, &timeIdentity);
+  MatSetSizes(timeIdentity, timeCount, sysTime, timeCount, sysTime);
+  MatSetType(timeIdentity, MATSEQAIJ);
+  MatSeqAIJSetPreallocation(timeIdentity, 1, NULL);
+  //Fill in the identity matrix based on the time indices we want to keep
+  for (j=0; j<timeCount; j++)
+    MatSetValue(timeIdentity, j, (*temporalSet)[j], 1, INSERT_VALUES);
+  MatAssemblyBegin(timeIdentity, MAT_FINAL_ASSEMBLY);
+  MatAssemblyEnd(timeIdentity, MAT_FINAL_ASSEMBLY);
+  for (grpnum=0; grpnum<2; grpnum++)
+    xflow->All->Mesh->ElemGroup[grpnum].s_nElem = 0;
+  //---------------------------------------------------------------------------
+  // Initialization
+  //---------------------------------------------------------------------------
+  //mshOs is important... will work on this part later.
+  for (i=0; i<totElem; i++)
+    keepTrack[i] = 0;
+  for (i=0; i<reduced->reducedMesh.elem.count; i++)
+    keepTrack[reduced->reducedMesh.elem.array[i]]=1;
+
+  /* int * sElem = xflow->All->Mesh->ElemGroup[0].sElem; */
+  //---------------------------------------------------------------------------
+  // Implementation
+  //---------------------------------------------------------------------------
+  for (i=0; i<reduced->reducedMesh.elem.count; i++){
+    xf_Index2EgrpElem(xflow->All->Mesh, reduced->reducedMesh.elem.array[i],
+		      &grpnum, &pelem);
+    if (xflow->All->Mesh->ElemGroup[grpnum].s_nElem == 0)
+      ierr = xf_Error(xf_Alloc((void **)
+			       &xflow->All->Mesh->ElemGroup[grpnum].sElem,
+    			       1, sizeof(int)));
+    else
+      ierr = xf_Error(xf_ReAlloc((void **)
+				 &xflow->All->Mesh->ElemGroup[grpnum].sElem,
+    				 xflow->All->Mesh->ElemGroup[grpnum].s_nElem+1
+    				 , sizeof(int)));
+    xflow->All->Mesh->ElemGroup[grpnum].
+      sElem[xflow->All->Mesh->ElemGroup[grpnum].s_nElem] = pelem;
+    for (j=0; j<xflow->All->Mesh->ElemGroup[grpnum].nFace[pelem];j++){
+      xf_NeighborAcrossFace(xflow->All->Mesh, grpnum, pelem, j, &egR, &eR,
+			    &faceR);
+      if (eR!=-1)
+	xf_EgrpElem2Index(xflow->All->Mesh, egR, eR, &pie);
+      if (keepTrack[pie] ==0 && eR != -1){
+	keepTrack[pie] = 1;
+	count ++;
+      }
+    }
+    xflow->All->Mesh->ElemGroup[grpnum].s_nElem++;
+  }
+  xf_NeighborAcrossFace(xflow->All->Mesh, 0, 0, 0,
+			&egR, &eR, &faceR);
+
+  //Make the mshOs, the number of columns in the jacobian matrix
+  *mshOs = (PetscInt *) malloc (count*sizeof(PetscInt));
+  reduced->reducedMesh_Os.i_ElemCom = (int *) malloc (totElem*sizeof(int));
+  initArrayInt(&reduced->reducedMesh_Os.elem, count);
+  initArrayInt(&reduced->reducedMesh_Os.node, numBasis*count);
+
+
+  for (i=0; i<totElem; i++)
+    reduced->reducedMesh_Os.i_ElemCom[i] = 0;
+
+  MatCreate(PETSC_COMM_SELF, &reduced->spaceZ);
+  MatSetSizes(reduced->spaceZ, count*elemSize, sysSize, count*elemSize, sysSize);
+  MatSetType(reduced->spaceZ, MATSEQAIJ);
+  MatSeqAIJSetPreallocation(reduced->spaceZ, 1, NULL);
+
+
+  for (i=0 ; i<totElem; i++){
+    if (keepTrack[i] > 0){
+
+
+      reduced->reducedMesh_Os.elem.array[counter]=i;
+      reduced->reducedMesh_Os.i_ElemCom[i] = counter;
+      for (j=0; j<numBasis; j++){
+	reduced->reducedMesh_Os.node.array[counter*numBasis+j]=i*numBasis+j;
+      }
+      for (j=0; j<elemSize; j++){
+	MatSetValue(reduced->spaceZ, counter*elemSize+j, i*elemSize+j, 1, INSERT_VALUES);
+      }
+
+    (*mshOs)[counter] = i;
+    counter++;
+    }
+  }
+
+
+  MatAssemblyBegin(reduced->spaceZ, MAT_FINAL_ASSEMBLY);
+  MatAssemblyEnd(reduced->spaceZ, MAT_FINAL_ASSEMBLY);
+
+  reduced->reducedMesh_Os.systemSize = reduced->reducedMesh_Os.elem.count*12;
+
+  /* PetscInt m, n; */
+  yk_kkron(timeIdentity, reduced->spaceZ, &reduced->Z_Os);
+  free(keepTrack);
+  MatDestroy(&timeIdentity);
+}
+
+void yk_findElementOfTarget(yk_PrimalSolver *ykflow, Multiverse *multiquation,
+			    Cluster *primal, PetscInt *spatialSet,
+			    Is_it* reduced){
+
+  //------------------------------------//-------------------------------------
+  // Variables here                     // Comments section
+  //------------------------------------//-------------------------------------
+  int i, j, k;                          //initialization for iteration
+  int count = 0;                        //will give me total # of elems
+  int elem;                             //saves the current element to add
+  int numBFG;                           //total num of boundary group
+  int numBasis = multiquation->equation.numStates*3;
+  int elemSize = numBasis*multiquation->equation.numStates;
+  yk_Xflow *xflow = (yk_Xflow *) ykflow->solver;
+  xf_BFaceGroup *aBFG = xflow->All->Mesh->BFaceGroup;
+  xf_ElemGroup *elemGroup = xflow->All->Mesh->ElemGroup;
+  int nSpatialDOF = reduced->nSampleNodes;
+  xf_Mesh *entireMesh = xflow->All->Mesh;
+  PetscInt numElems = primal->self->space.elem.count;
+  PetscInt numNodes = primal->self->space.node.count;
+  PetscInt *elemTrack = (PetscInt *) malloc (numNodes*sizeof(PetscInt));
+  PetscInt eTarget;
+  for (i=0; i<numNodes; i++)
+    elemTrack[i] = 0;
+  printf("%d\n", entireMesh->nElemGroup);
+  printf("Does it work\n");
+
+  xf_ConvTable *Node2Elem;
+  printf("Number of nodes in Mesh %d\n", entireMesh->nNode);
+  printf("what waht waht %d\n", entireMesh->ElemGroup[0].Node[0][0]);
+  printf("what waht waht %d\n", entireMesh->ElemGroup[0].Node[0][1]);
+  printf("what waht waht %d\n", entireMesh->ElemGroup[0].Node[0][2]);
+  xf_Node2ElemConnectivity(entireMesh, &Node2Elem);
+  printf("%d\n", Node2Elem[0].nItem);
+  printf("%d\n", Node2Elem[0].Item[0]);
+  printf("%d\n", Node2Elem[294].nItem);
+  printf("%d\n", Node2Elem[294].Item[0]);
+  printf("%d\n", Node2Elem[294].nItem);
+  printf("%d\n", Node2Elem[294].Item[1]);
+  printf("%d\n", Node2Elem[2171].nItem);
+  printf("%d\n", Node2Elem[2171].Item[0]);
+  printf("%d\n", Node2Elem[1298].nItem);
+  printf("%d\n", Node2Elem[1298].Item[0]);
+  printf("%d\n", Node2Elem[1299].nItem);
+  printf("%d\n", Node2Elem[1299].Item[0]);
+
+  printf("did it work? i wonder\n");
+  printf("num basis? %d \n", numBasis);
+  printf("factor factor %d\n", numNodes);
+
+  for(i=0; i<nSpatialDOF; i++)
+    printf("%f\n", floor(spatialSet[i]/numBasis));
+  for(i=0; i<nSpatialDOF; i++){
+    eTarget = spatialSet[i]/numBasis;
+    printf("%d\n", elemTrack[eTarget]);
+    if (elemTrack[eTarget] == 0){
+      elemTrack[eTarget] = 1;
+      /* for (j=0; j<Node2Elem[eTarget].nItem; j++) */
+      /* 	printf("%d\n", Node2Elem[eTarget].Item[j]); */
+      printf("%d\n", eTarget);
+    }
+  }
+
+
+
+}
+
 
 void yk_findBoundarySeeds(yk_PrimalSolver *ykflow, Multiverse* multiquation,
                           Cluster *primal, int nSampNodes, int *numSeeds,
@@ -54,10 +255,12 @@ void yk_findBoundarySeeds(yk_PrimalSolver *ykflow, Multiverse* multiquation,
   yk_Xflow *xflow = (yk_Xflow *) ykflow->solver;
   xf_BFaceGroup *aBFG = xflow->All->Mesh->BFaceGroup;
   xf_ElemGroup *elemGroup = xflow->All->Mesh->ElemGroup;
+
   //---------------------------------------------------------------------------
   // Implementation
   //---------------------------------------------------------------------------
   numBFG = xflow->All->Mesh->nBFaceGroup; //total num of boundary group
+  //This may need to be changed later............
   for (i=0; i<numBFG; i++){
     elem = 0;                         //set to 0, want global elem number
     j= aBFG[i].nBFace-1; //Just need one element on the boundary for each group
@@ -80,8 +283,9 @@ void yk_findBoundarySeeds(yk_PrimalSolver *ykflow, Multiverse* multiquation,
     printf("Need to specify at least %d more nSampleNodes\n", count*
            multiquation->equation.numStates- nSampNodes);
     exit(EXIT_FAILURE);                 //quit if user needs to specify more
-  }else
+  }else{
     *numSeeds = count*multiquation->equation.numStates;
+  }
 }
 
 
@@ -145,7 +349,7 @@ void yk_matrix2D2MatGroup(xf_All *All, xf_JacobianMatrix *dRdU, Galaxy *pObj,
   int sr = All->EqnSet->StateRank;
   int *egrpOffset;
   int globalIndex;
-  int r, rN, row, col;
+  int r, rN, row, col, actualcol;
   int floorElem = 0;
   int globalElem, localElem;
   int *getMeshIndex = createMeshMap(&pObj->space);
@@ -212,6 +416,8 @@ void yk_matrix2D2MatGroup(xf_All *All, xf_JacobianMatrix *dRdU, Galaxy *pObj,
       for (m=0; m<groupN; m++)
         floorElem += dRdU->nElem[m];
       elemN +=floorElem;
+      if (reduced->hrom==1)
+	elemN = reduced->reducedMesh_Os.i_ElemCom[elemN];
       for (m = 0; m<j; m++)
         row +=sr*nBasis;
       for (m = 0; m<getMeshIndex[elemN]; m++)
@@ -222,6 +428,8 @@ void yk_matrix2D2MatGroup(xf_All *All, xf_JacobianMatrix *dRdU, Galaxy *pObj,
             if (A[(m*nnN+n)*sr*sr+p]!= 0.0)
 	      MatSetValue(matObj, row+m*sr+(p/sr), col+n*sr+(p%sr),
                           A[(m*nnN+n)*sr*sr+p], INSERT_VALUES);
+
+
     }
   }
   MatAssemblyBegin(matObj, MAT_FINAL_ASSEMBLY);
@@ -423,25 +631,19 @@ int yk_getOffDiagonalJacobiansGroup(yk_PrimalSolver *ykflow, Galaxy *primal,
   xf_JacobianMatrix *Mass;
   yk_Xflow *xflow = (yk_Xflow *) ykflow->solver;
   xf_SolverData *SolverData = NULL;
-  printf("weord\n");
   xf_Call(xf_CreateSolverData(xflow->All, &SolverData));
   SolverData->DoProcessResidual = xfe_False; // do not process residual
   SolverData->UseArtificialDt = xfe_False;
   SolverData->c = 0;
-  printf("ok\n");
   xf_Call(xf_FindSimilarVectorGroup(xflow->All, xflow->UG, "residual",
 				    xfe_True,
 				    xfe_True, NULL, &RG, &Found));
-  printf("dddddd\n");
   ierr = xf_Error(xf_FindJacobianMatrix(xflow->All, xflow->All->DataSet,
                                         xflow->UG, NULL,
                                         xfe_True, NULL, NULL, &Mass, NULL));
-  printf("eeeee\n");
   xf_SetZeroJacobian(Mass);
-  printf("ffff\n");
   xf_Call(xf_AddMassMatrixGroup(xflow->All, 1.0, NULL, xflow->UG, RG, Mass,
 				SolverData));
-  printf("hrm\n");
   /* if (*Jacobian[i] != NULL) */
   yk_matrix2D2MatGroup(xflow->All, Mass, primal, *Jacobian, reduced);
   xf_Call(xf_DestroySolverData(SolverData));
@@ -509,117 +711,115 @@ void yk_xflow_totalResidual(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   xf_VectorGroup *RG = NULL;
   enum xfe_TimeSchemeType TimeScheme;
   xf_JacobianMatrix *R_U;
-  int iTime = primal->self->time.node-1;
+  int initalNode = (int)(primal->self->time.t_0/primal->self->time.dt);
+  int iTime = primal->self->time.node-initalNode-1;
+  double resTime = primal->self->time.node*primal->self->time.dt;
   yk_Xflow *xflow = (yk_Xflow *) ykflow->solver;
   xf_TimeHistData *TimeHistData = xflow->TimeHistData;
   xf_SolverData *SolverData=NULL;
   xf_DataSet *DataSet = NULL;
   char SavePrefix[xf_MAXSTRLEN];
   xf_Data *D=NULL;
+  int ttime;
   //---------------------------------------------------------------------------
   // Implementation
   //---------------------------------------------------------------------------
-  xf_Call(xf_GetKeyValue(xflow->KeyValueArg, "job", jobFile));                   sprintf(SavePrefix, "%s", jobFile);
+  /* xf_Call(xf_GetKeyValue(xflow->KeyValueArg, "job", jobFile)); */
+  /* sprintf(SavePrefix, "%s", jobFile); */
 
 
   xf_Call(xf_CreateSolverData(xflow->All, &SolverData));
   SolverData->DoProcessResidual = xfe_False; // do not process residual
   SolverData->UseArtificialDt = xfe_False;
-  //Get the time information
+  /* //Get the time information */
   xf_Call(xf_GetTimeStep(TimeHistData, iTime, &TimeScheme, &Time, &TimeStep));
-  //Get the Param_information
+  /* //Get the Param_information */
   xf_Call(xf_GetParam_MultiStep(TimeScheme, &nStep, &nStepR, &a, &b));
+
   //Allocate the state for each time that is needed for the discretization
   xf_Call(xf_Alloc( (void **) &UGi, nStep+1, sizeof(xf_VectorGroup *)));
   for (i=0; i<=nStep; i++){
     sprintf(title, "state_%d", i);
-
     xf_Call(xf_FindSimilarVectorGroup(xflow->All, xflow->UG, title, xfe_True,
-				      xfe_True, NULL, UGi+i, &Found));
+  				      xfe_True, NULL, UGi+i, &Found));
     xf_Call(xf_SetZeroVectorGroup(UGi[i])); // zero out if created
   }
-  //Source vector create
+  /* //Source vector create */
   sprintf(title, "Residual_%d", 0);
-  xf_Call(xf_FindSimilarVectorGroup(xflow->All, UGi[0], title, xfe_True, xfe_True,
-				    NULL, &SG, &Found));
-  //M/dt*(a1*UG^n + a2*UG^{n-1} + ...) + b1*RG^{n} + ...
-  //State portion
-
-  //THE GUESS
+  xf_Call(xf_FindSimilarVectorGroup(xflow->All, UGi[0], title, xfe_True,
+				    xfe_True, NULL, &SG, &Found));
+  /* //M/dt*(a1*UG^n + a2*UG^{n-1} + ...) + b1*RG^{n} + ... */
+  /* //State portion */
+  /* //THE GUESS */
+  //---------------------------------------------------------------------------
+  // Place the guess for the i+1 values (To be used in the residual portion)
+  //---------------------------------------------------------------------------
   yk_array2VectorGroup(UGi[0], primal->self);
 
-  //THE REST
-  // create data set for reading states
+  //---------------------------------------------------------------------------
+  // Create the vector sets for the Ui+1 and Ui parks the non sptial R part
+  //---------------------------------------------------------------------------
   xf_Call(xf_CreateDataSet(&DataSet));
+  ttime = primal->self->time.node;
   for (i=1; i<=nStep; i++){
-    // read .data from file
-    ks_readSolution(multiquation->equation, primal->self, iTime-i+1);
+    /* printf("%d\n", ttime); */
+    /* printf("gala %d\n", i); */
+    /* printf("readsolution %d\n", ttime-i); */
+    ks_readSolution(multiquation->equation, primal->self,
+  		    ttime-i);
     yk_array2VectorGroup(UGi[i], primal->self);
-    /* sprintf(title, "%s_U%d.data", SavePrefix, iTime-i+1); */
-    /* xf_Call(xf_ReadDataSetBinary(xflow->All->Mesh, NULL, title, DataSet)); */
-    /* // use first (usually only) piece of data */
-    /* D = DataSet->Head; */
-    /* UGi[i] = (xf_VectorGroup *) D->Data; */
-    /* printf("%d trick trick \n", i); */
     if (i==1){
       xf_Call(xf_VectorGroupMultSet(UGi[i], a[i], xfe_Set, SG));
     }else{
       xf_Call(xf_VectorGroupMultSet(UGi[i], a[i], xfe_Add, SG));
     }
   }
-  // now set SG = M/dt * SGhgyt7
-  xf_Call(xf_MultMassMatrixGroup(xflow->All, 1.0/TimeStep, xfe_VectorRoleElemState,
-				 SG));
+  //---------------------------------------------------------------------------
+  // Calculate the Mass Matrix
+  //---------------------------------------------------------------------------
+/* // now set SG = M/dt * SGhgyt7 */
+  xf_Call(xf_MultMassMatrixGroup(xflow->All, 1.0/TimeStep,
+				 xfe_VectorRoleElemState,SG));
   // zero out all but ElemState role in SG
   xf_Call(xf_MaskZeroVectorGroup(SG, xfe_VectorRoleElemState));
-
-  xf_Call(xf_SetKeyValueReal(xflow->All->Param->KeyValue, "Time", Time + TimeStep));
-
   SolverData->c = a[0]/TimeStep; // coefficient on M*U^{n+1}
-  //SolverData->c= 0;
   SolverData->SG = SG; // store source vector group
   //Set the values of the state: meed to edit it
 
-  //NEED TO ADD THE GUESS HERE
-  //ks_read(VALUE)
-  /* ks_readSolution(multiquation->equation, primal->self, 1); */
-  /* getchar(); */
-  /* printf("%d\n", primal->self->time.node); */
-  /* sprintf(title, "%s_U%d.data", SavePrefix, 1); */
-  /* xf_Call(xf_ReadDataSetBinary(xflow->All->Mesh, NULL, title, DataSet)); */
-  /* // use first (usually only) piece of data */
-  /* D = DataSet->Head; */
-  /* UGi[0] = (xf_VectorGroup *) D->Data; */
-  /* printf("checkchicken\n"); */
-  /* getchar(); */
-  /* for (i=0; i<UGi[0]->Vector[0]->nArray; i++){ */
-  /*   for (j=0; j<UGi[0]->Vector[0]->GenArray->n; j++){ */
-  /*     for (k=0; k<12; k++) */
-  /* 	printf("%0.16e %0.16e\n",  UGi[0]->Vector[0]->GenArray[i].rValue[j][k]); */
-  /*   } */
-  /* } */
-
   //Create Jacobian Vector
   xf_Call(xf_FindJacobianMatrix(xflow->All, xflow->All->DataSet, UGi[0], NULL,
-				!LeanFlag, NULL, NULL, &R_U, &Found));
+  				!LeanFlag, NULL, NULL, &R_U, &Found));
 
-   // locate Residual vector
+  // locate Residual vector
+  /* printf("time to calculate residual at %g\n", Time+primal->self->time.dt); */
+  xf_Call(xf_SetKeyValueReal(xflow->All->Param->KeyValue, "Time", Time+primal->self->time.dt));
+
+  //---------------------------------------------------------------------------
+  // Residual calculuate
+  //---------------------------------------------------------------------------
   xf_Call(xf_FindSimilarVectorGroup(xflow->All, UGi[0], "Residual", xfe_False,
-				    xfe_True, NULL, &RG, NULL));
-  ierr = xf_Error(xf_CalculateResidual(xflow->All, UGi[0], RG, R_U,
-				       SolverData));
+  				    xfe_True, NULL, &RG, NULL));
+  if (reduced->hrom==1)
+    ierr = xf_Error(yk_CalculateResidual(xflow->All, UGi[0], RG, R_U,
+  					 SolverData));
+  else
+    ierr = xf_Error(xf_CalculateResidual(xflow->All, UGi[0], RG, R_U,
+  					 SolverData));
   enum xfe_VectorRoleType RnormVector;
   RnormVector = xfe_VectorRoleElemState;
   xf_Call(xf_VectorGroupNorm(RG, 1, RnormVector, &SolverData->RnormL1));
-  //Convert to Petsc Vec format (Residual)
+  //---------------------------------------------------------------------------
+  // Convert to Petsc Vec format (Residual)
+  //---------------------------------------------------------------------------
   yk_vector2VecGroup(xflow->All, RG, primal->self, residual, reduced);
   //yk_vector2VecGroup(primalSolverObj, RG, residual, reduced);
   //Convert to Petsc Mat format (Jacobian)
   if (Jacobian != NULL)
     yk_matrix2D2MatGroup(xflow->All, R_U, primal->self, Jacobian, reduced);
 
-  /* SolverError = xf_CheckSolverError(ierr, xfex_True, SolverData, UGSafe, */
-  /* 				    UG, &Rewind); */
+  //---------------------------------------------------------------------------
+  // Destory everythiung
+  //---------------------------------------------------------------------------
   xf_Call(xf_DestroySolverData(SolverData));
   xf_Call(xf_DestroyDataSet(DataSet));
   xf_Release((void *) UGi);
@@ -742,6 +942,7 @@ void yk_Init(yk_PrimalSolver *ykflow, Multiverse *multiquation, Cluster *fom,
   int count=0;
   double *testparam;
 
+  char createParam[xf_MAXSTRLEN];
 
   //FOR REDUCED ORDER MODELING AND EVERYTHING RELATED WITH YKFLOW (WHAT A NAME)
   //---------------------------------------------------------------------------
@@ -761,18 +962,22 @@ void yk_Init(yk_PrimalSolver *ykflow, Multiverse *multiquation, Cluster *fom,
   //Need to convert the xflow parameters into ykflow parameters initU
   initIs_it(reduced);
   read_input(argcIn, argvIn, multiquation->equation, NULL, NULL, reduced);
+
+
+  printf("HAHAHAHAHHA\n");
+  printf("%g %g %g\n", reduced->params[0],reduced->params[1], reduced->params[2]);
+  getchar();
+  sprintf(createParam,"python3 createParam.py %g %g %g",
+	  reduced->params[0], reduced->params[1], reduced->params[2]);
+  printf("with u %s\n",createParam);
+  getchar();
+
+  system(createParam);
+  printf("did it work\n");
+  getchar();
   //---------------------------------------------------------------------------
   // Reduced mutliquation equation parameters
   //---------------------------------------------------------------------------
-  /* reduced->nBasisFuncs = (PetscInt *) malloc (reduced->nTimeSegs* */
-  /* 					      sizeof(PetscInt)); */
-  /* reduced->nBasisTimes = (PetscInt *) malloc (reduced->nTimeSegs* */
-  /* 					      sizeof(PetscInt)); */
-
-  /* for (i=0l i<reduced->nTimeSegs; i++){ */
-  /*   reduced->nBasisFuncs[i] = 0; */
-  /*   reduced->nBasisTimes[i] = 0; */
-  /* } */
   sprintf(eqnReduced, "%s%s", jobFile, "Reduced");
 
   strcpy(multiquation->equationReduced.nameEqn, eqnReduced);
@@ -801,9 +1006,9 @@ void yk_Init(yk_PrimalSolver *ykflow, Multiverse *multiquation, Cluster *fom,
   //Set the total number of elements FIne
   //---------------------------------------------------------------------------
   fom->self->space.elem.count = 0;
-  for (i=0; i<xflow->All->Mesh->nElemGroup; i++)
+  for (i=0; i<xflow->All->Mesh->nElemGroup; i++){
     fom->self->space.elem.count += xflow->All->Mesh->ElemGroup[i].nElem;
-  //Set the number of basis nodes
+  }//Set the number of basis nodes
   fom->self->basis.nodes = (xflow->UG->Vector[0]->GenArray)->r
     /xflow->UG->Vector[0]->StateRank;
   //Set the total number of nodes
@@ -815,6 +1020,8 @@ void yk_Init(yk_PrimalSolver *ykflow, Multiverse *multiquation, Cluster *fom,
     fom->self->space.elem.count;
   fom->self->index = (PetscInt *) malloc(fom->self->systemSize*
 					 sizeof(PetscInt));
+
+  reduced->nSampleNodes = (int)(reduced->pSampleElems*fom->self->space.elem.count);
   for (i=0; i<fom->self->systemSize; i++)
     fom->self->index[i] = i;
   strcpy(fom->clusterId, "state");
@@ -857,8 +1064,6 @@ void yk_Init(yk_PrimalSolver *ykflow, Multiverse *multiquation, Cluster *fom,
   definelocalMeshGrid(0, reduced, testparam,  &count);
   free(testparam);
 
-
-
 }
 
 void definelocalMeshGrid(int paramNumber, Is_it *reduced, double *testparam,
@@ -885,7 +1090,7 @@ void definelocalMeshGrid(int paramNumber, Is_it *reduced, double *testparam,
 
 /* void createSampleMesh(yk_PrimalSolver *ykflow, xf_All *sampleAll){ */
 /*   int ierr; */
-/*   char jobFile[xf_MAXSTRLEN]; */
+/*   char joyk_bFile[xf_MAXSTRLEN]; */
 /*   enum xfe_Bool DoRestart=0; */
 /*   yk_Xflow *xflow = (yk_Xflow *) ykflow->solver; */
 /*   //--------------------------------------------------------------------------- */
@@ -1068,7 +1273,7 @@ void yk_print2xflowTxt(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   //---------------------------------------------------------------------------
   xf_Call(xf_GetKeyValue(xflow->All->Param->KeyValue, "SavePrefix",
 			 SavePrefix));
-  sprintf(temp, "%s_ROM_Approximate_U", SavePrefix);
+  sprintf(temp, "%s_U", sol->id);
   for (i=leftNode; i<rightNode+1; i++){
     xf_Call(xf_CreateDataSet(&DataSet));
     xf_Call(xf_DataSetAdd(DataSet, "State", xfe_VectorGroup, xfe_True, (void *)
@@ -1083,8 +1288,43 @@ void yk_print2xflowTxt(yk_PrimalSolver *ykflow, Multiverse *multiquation,
     xf_Call(xf_DestroyDataSet(DataSet));
   }
 
-  sprintf(temp, "%s_ROM_Approximate", SavePrefix);
+  sprintf(temp, "%s", sol->id);
   yk_xfData2Dat(sol, xflow->UG, temp);
+}
+
+void yk_initializeYkflow(){
+  //------------------------------------//-------------------------------------
+  // Variables here                     // Comments section
+  //------------------------------------//-------------------------------------
+  int i;
+  int ierr;
+  int nTimeStep = 0;
+  int argcIn = 2; 
+  enum xfe_Bool DoRestart;
+  char newFace[xf_MAXSTRLEN];
+  char jobFile[xf_MAXSTRLEN];
+  char OutputFile[xf_MAXSTRLEN];
+  char inputFile[xf_MAXSTRLEN];
+  char eqnReduced[xf_MAXSTRLEN];
+  char *argvIn[] = {"0", "9", NULL};
+  yk_Xflow *xflow  = (yk_Xflow *) ykflow->solver;
+  xf_All *All = xflow->All;  
+  //---------------------------------------------------------------------------
+  // Find all the job and equation related information
+  //---------------------------------------------------------------------------
+  //Parse through the input
+  xf_Call(xf_GetKeyValue(xflow->KeyValueArg, "job", jobFile));
+
+  //Read All from job and load and register the equations et
+  xf_Call(xf_ReadAllFromJobFile(jobFile, xfe_True, &xflow->All));
+  xf_Call(xf_LoadEqnSetLibrary(xflow->All->EqnSet->EqnSetLibrary)); //Equation
+  xf_Call(xf_EqnSetRegister(xflow->All->EqnSet));
+
+  //Make sure we have a primal state //initial condition is part of it
+  xf_Call(xf_GetKeyValueBool(xflow->All->Param->KeyValue, "Restart",
+			     &DoRestart));
+  xf_Call(xf_FindOrCreatePrimalState(xflow->All, DoRestart, NULL, &xflow->UG));
+
 }
 
 void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
@@ -1093,47 +1333,235 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   //------------------------------------//-------------------------------------
   // Variables here                     // Comments section
   //------------------------------------//-------------------------------------
-  int i;                                //initialization for iteration
+  int i, j;                                //initialization for iteration
+  int ierr;
   //check this and init about this
   yk_Xflow *xflow  = (yk_Xflow *) ykflow->solver;
-  /* //--------------------------------------------------------------------------- */
-  /* // Reduced Order Modeling */
-  /* //--------------------------------------------------------------------------- */
-  /* printf("----------------------------------------------------------------\n"); */
-  /* printf("|                    Reduced-Order Modeling                    |\n"); */
-  /* printf("----------------------------------------------------------------\n"); */
-  /* yk_createReducedOrderModel(ykflow, multiquation, fom, rom, reduced); */
-  /* /\* if (!reduced->restart) *\/ */
-  /* /\* yk_runReducedOrderModel(ykflow, multiquation, fom, rom, reduced); *\/ */
-  /* //--------------------------------------------------------------------------- */
-  /* // Hyper-Reduced Order Modeling */
-  /* //--------------------------------------------------------------------------- */
-  /* printf("----------------------------------------------------------------\n"); */
-  /* printf("|                 Hyper-Reduced-Order Modeling                 |\n"); */
-  /* printf("----------------------------------------------------------------\n"); */
-  /* yk_createHyperReducedOrderModel(ykflow, multiquation, fom, hrom, reduced); */
-  /* yk_runHyperReducedOrderModel(ykflow, multiquation, fom, hrom, reduced); */
+  Vec fomVec, romVec, hromVec;
+  Mat fomMat, romMat, hromMat;
+  PetscInt sysSize = fom->self->systemSize;
+  PetscInt time =fom->self->time.count;
+  enum xfe_Bool DoRestart;
+  PetscReal normROM;
+  PetscReal normHROM;
+  PetscReal normFOM;
+  VecCreate(PETSC_COMM_SELF, &fomVec);
+  VecSetSizes(fomVec, sysSize, sysSize);
+  VecSetType(fomVec, VECSEQ);
 
-  //---------------------------------------------------------------------------
-  // Space-Time Reduced-Order Modeling
-  //---------------------------------------------------------------------------
-  printf("----------------------------------------------------------------\n");
-  printf("|      Windowed Space-Time Hyper-Reduced-Order Modeling        |\n");
-  printf("----------------------------------------------------------------\n");
-  /* With windowed space-time, we treat each window as its own entity. Each window will solve a residual minimization problem. Instead of doing what I did in the pymortestbed code, I'm going to keep the routine in the original createROM and perform script as much as possible, the same. Treat it more like a wrapper code at the moment. */
+  VecCreate(PETSC_COMM_SELF, &romVec);
+  VecSetSizes(romVec, sysSize, sysSize);
+  VecSetType(romVec, VECSEQ);
+
+  VecCreate(PETSC_COMM_SELF, &hromVec);
+  VecSetSizes(hromVec, sysSize, sysSize);
+  VecSetType(hromVec, VECSEQ);
+
+  MatCreate(PETSC_COMM_SELF, &fomMat);
+  MatSetSizes(fomMat, sysSize, time, sysSize, time);
+  MatSetType(fomMat, MATSEQDENSE);
+  MatSetUp(fomMat);
+
+  MatCreate(PETSC_COMM_SELF, &romMat);
+  MatSetSizes(romMat, sysSize, time, sysSize, time);
+  MatSetType(romMat, MATSEQDENSE);
+  MatSetUp(romMat);
+
+  MatCreate(PETSC_COMM_SELF, &hromMat);
+  MatSetSizes(hromMat, sysSize, time, sysSize, time);
+  MatSetType(hromMat, MATSEQDENSE);
+  MatSetUp(hromMat);
+  /* enum xfe_TimeSchemeType TimeScheme; */
+  /* real iTime, Time; */
+  /* int TimeStep; */
+
+  /* char FileName[xf_MAXLINELEN]; */
+  /* char SavePrefix[xf_MAXLINELEN]; */
+  /* char LogOutput[xf_MAXLINELEN]; */
+  /* xf_Call(xf_GetKeyValue(xflow->All->Param->KeyValue, "SavePrefix", SavePrefix)); */
+  /* xf_Call(xf_GetKeyValue(xflow->All->Param->KeyValue, "LogOutput", LogOutput)); */
+  /* /\* //--------------------------------------------------------------------------- *\/ */
+  /* /\* // Reduced Order Modeling *\/ */
+  /* /\* //--------------------------------------------------------------------------- *\/ */
+  /* /\* printf("----------------------------------------------------------------\n"); *\/ */
+  /* /\* printf("|                    Reduced-Order Modeling                    |\n"); *\/ */
+  /* /\* printf("----------------------------------------------------------------\n"); *\/ */
+  /* /\* yk_createReducedOrderModel(ykflow, multiquation, fom, rom, reduced); *\/ */
+  /* /\* /\\* if (!reduced->restart) *\\/ *\/ */
+  /* /\* /\\* yk_runReducedOrderModel(ykflow, multiquation, fom, rom, reduced); *\\/ *\/ */
+  /* /\* //--------------------------------------------------------------------------- *\/ */
+  /* /\* // Hyper-Reduced Order Modeling *\/ */
+  /* /\* //--------------------------------------------------------------------------- *\/ */
+  /* /\* printf("----------------------------------------------------------------\n"); *\/ */
+  /* /\* printf("|                 Hyper-Reduced-Order Modeling                 |\n"); *\/ */
+  /* /\* printf("----------------------------------------------------------------\n"); *\/ */
+  /* /\* yk_createHyperReducedOrderModel(ykflow, multiquation, fom, hrom, reduced); *\/ */
+  /* /\* yk_runHyperReducedOrderModel(ykflow, multiquation, fom, hrom, reduced); *\/ */
+
+  /* //--------------------------------------------------------------------------- */
+  /* // Space-Time Reduced-Order Modeling */
+  /* //--------------------------------------------------------------------------- */
+  printf("--------------------------------------------------------------------------------\n");
+  printf("|                   Windowed Space-Time Model Order Reduction                  |\n");
+  printf("--------------------------------------------------------------------------------\n");
+  /* /\* With windowed space-time, we treat each window as its own entity. Each window will solve a residual minimization problem. Instead of doing what I did in the pymortestbed code, I'm going to keep the routine in the original createROM and perform script as much as possible, the same. Treat it more like a wrapper code at the moment. *\/ */
+  /* xf_Data *D; */
+  /* xf_VectorGroup *UG0, **PsiG=NULL; */
+  /* real WindowStart, WindowEnd, WindowTime; */
+  /* xf_VectorGroup *UG; */
+  /* /\* printf("Number of time windows to calculate at: %d\n", reduced->nTimeSegs); *\/ */
+  /* WindowTime=(fom->self->time.t_f-fom->self->time.t_0)/reduced->nTimeSegs; */
+  /* int wonderboy = WindowTime/fom->self->time.dt; */
+
+  /* printf("%d\n", wonderboy); */
+  /* getchar(); */
+
+  /* xf_Call(xf_GetKeyValueBool(xflow->All->Param->KeyValue, "Restart", &DoRestart)); */
+  /* xf_Call(xf_FindOrCreatePrimalState(xflow->All, 1, NULL, &xflow->UG)); */
   for (i=0; i<reduced->nTimeSegs; i++){ //Number of time windows
-    printf("----------------------------------------------------------------\n");
-    printf("|                       W i n d o w  %d                         |\n", i);
-    printf("----------------------------------------------------------------\n");
+
+
+/*     // get primal state */
+/*     xf_Call(xf_FindPrimalState(xflow->All->DataSet, 0, &D, NULL)); */
+/*     xflow->UG = (xf_VectorGroup *) D->Data; */
+
+/*     WindowStart = fom->self->time.t_0; */
+/*     WindowEnd = fom->self->time.t_0 + (1)*WindowTime; */
     fom->self->time.window_i = i;
+
+
+/*     xf_Call(xf_SetKeyValueInt(xflow->All->Param->KeyValue, "nTimeStep", wonderboy)); */
+/*     xf_Call(xf_SetKeyValueReal(xflow->All->Param->KeyValue, "Time", WindowStart)); */
+/*     xf_Call(xf_SetKeyValueReal(xflow->All->Param->KeyValue, "EndTime", WindowEnd)); */
+/*     xf_Call(xf_CreateUniformTimeHistData(xflow->All,LogOutput, &xflow->TimeHistData)); */
+/*     xf_Call(xf_SetKeyValueInt(xflow->All->Param->KeyValue, "UnsteadyWriteInterval", 1)); */
+
+
+
+/*     /\* yk_forwardSimulation(xflow); *\/ */
+
+
+/*     /\* //--------------------------------------------------------------------------- *\/ */
+/*     /\* // Initialization on ykflow *\/ */
+/*     /\* //--------------------------------------------------------------------------- *\/ */
+
+/*     /\* yk_Init(ykflow, multiquation, fom, reduced); *\/ */
+
+
+/*     // call primal solver */
+/*     xf_printf("\n** Running Window %d: StartTime = %.5e, EndTime = %.5e, TimeStep = %.5e, nTime\ */
+/* Step = %d **\n", */
+/*               i, WindowStart, WindowEnd, fom->self->time.dt, wonderboy); */
+/*     xf_printf("\nCalling primal solver.\n"); */
+/*     /\* xf_Call(xf_ApplyTimeScheme(xflow->All, SavePrefix, xfe_False, &xflow->UG, xflow->TimeHistData)); *\/ */
+
+
+/*     /\* sprintf(FileName, "%s_WindowNode%02d_U.data", SavePrefix, i+1); *\/ */
+/*     /\* xf_Call(xf_DumpVectorGroupBinary(xflow->All->Mesh, "State", xflow->UG, FileName)); *\/ */
+
+
+
+/*     // destroy time history data */
+
+/*     /\* xf_Call(xf_DataSetRemove(xflow->All->DataSet, "State", xfe_True)); *\/ */
+/*     /\* xf_Call(xf_DataSetAdd(xflow->All->DataSet, "State", xfe_VectorGroup, xfe_True, (void *) UG0, NULL)); *\/ */
+/*     /\* UG0->Vector[0]->TimeIndex = 0; // make look like primal solver state *\/ */
+/*     /\* UG0->Vector[0]->SolverRole = xfe_SolverRolePrimalState; *\/ */
+
+    printf("        --------------------------------------------------------------\n");
+    printf("--------|                       W i n d o w  %d                        |------\n", i);
+    printf("        --------------------------------------------------------------\n");
+    //-------------------------------------------------------------------------
+    // Reduced Order Modeling
+    //-------------------------------------------------------------------------
+    printf("        --------------------------------------------------------------\n");
+    printf("        |          Windowed ST Least-Squares Petrov-Galerkin          |\n", i);
+    printf("        --------------------------------------------------------------\n");
+    /* xf_Call(xf_GetTimeStep(xflow->TimeHistData, iTime, &TimeScheme, &Time, &TimeStep)); */
+    /* printf("%d %g %g %d\n", iTime, TimeScheme, Time, TimeStep); */
     yk_createReducedOrderModel_ST(ykflow, multiquation, fom, reduced);
-    /* yk_runReducedOrderModel_ST(ykflow, multiquation, fom, rom, reduced); */
-    /* /\* yk_storeBasisInfoWindow(i, reduced); *\/ */
-    /* yk_print2xflowTxt(ykflow, multiquation, rom->self); */
+    yk_runReducedOrderModel_ST(ykflow, multiquation, fom, rom, reduced);
+/*     /\* /\\* /\\\* yk_storeBasisInfoWindow(i, reduced); *\\\/ *\\/ *\/ */
 
+
+/*         // store (end of window) UG away for use after adjoint (not stored in All) */
+/*     xf_Call(xf_FindSimilarVectorGroup(xflow->All, xflow->UG, "NotInAll", xfe_True, xfe_False, NULL, &UG0, NULL)); */
+/*     xf_Call(xf_SetVectorGroup(xflow->UG, xfe_Set, UG0)); */
+/*     UG0->Vector[0]->TimeIndex = 0; // make look like primal solver state */
+/*     UG0->Vector[0]->SolverRole = xfe_SolverRolePrimalState; */
+
+/*     xf_Call(xf_DestroyTimeHistData(xflow->TimeHistData)); */
+
+    /* //------------------------------------------------------------------------- */
+    /* // Hyper-Reduced Order Modeling */
+    /* //------------------------------------------------------------------------- */
+    printf("        --------------------------------------------------------------\n");
+    printf("        |          Windowed ST Gauss Newton w/ Approx Tensors          |\n", i);
+    printf("        --------------------------------------------------------------\n");
+
+    yk_createHyperReducedOrderModel_ST(ykflow, multiquation, fom, hrom,reduced);
+    yk_runHyperReducedOrderModel_ST(ykflow, multiquation, fom, hrom, reduced);
+
+
+    //-------------------------------------------------------------------------
+    // Post process here
+    //-------------------------------------------------------------------------
+    if (i==reduced->nTimeSegs-1){
+      for (j=0; j<fom->self->time.count; j++){
+	ks_readSolution(multiquation->equation, fom->self, j+1);
+	ks_readSolution(multiquation->equation, rom->self, j+1);
+	ks_readSolution(multiquation->equation, hrom->stateFull, j+1);
+	array2Vec(multiquation->equation, fom->self, fom->self->space, fomVec);
+	array2Vec(multiquation->equation, rom->self, fom->self->space, romVec);
+	array2Vec(multiquation->equation, hrom->stateFull, fom->self->space, hromVec);
+	ks_Vec2MatCol(fomMat, sysSize, fom->self->index, j, fomVec, INSERT_VALUES);
+	ks_Vec2MatCol(romMat, sysSize, fom->self->index, j, romVec, INSERT_VALUES);
+	ks_Vec2MatCol(hromMat, sysSize, fom->self->index, j, hromVec, INSERT_VALUES);
+      }
+    }
+
+    yk_print2xflowTxt(ykflow, multiquation, rom->self);
+    yk_print2xflowTxt(ykflow, multiquation, hrom->stateFull);
+
+
+    //-------------------------------------------------------------------------
+    // Destroy everything
+    //-------------------------------------------------------------------------
     yk_destroyReducedOrderModel_ST(ykflow, multiquation, fom, rom, reduced);
-  }
+    yk_destroyHyperReducedOrderModel_ST(ykflow, multiquation, fom, hrom, reduced);
 
+    xf_Release((void **) xflow->All->Mesh->ElemGroup[0].sElem);
+    xf_Release((void **) xflow->All->Mesh->ElemGroup[1].sElem);
+
+  }
+  MatAssemblyBegin(fomMat, MAT_FINAL_ASSEMBLY);
+  MatAssemblyEnd(fomMat, MAT_FINAL_ASSEMBLY);
+
+  MatAssemblyBegin(romMat, MAT_FINAL_ASSEMBLY);
+  MatAssemblyEnd(romMat, MAT_FINAL_ASSEMBLY);
+
+  MatAssemblyBegin(hromMat, MAT_FINAL_ASSEMBLY);
+  MatAssemblyEnd(hromMat, MAT_FINAL_ASSEMBLY);
+
+  MatAXPY(romMat, -1, fomMat, SAME_NONZERO_PATTERN);
+  MatAXPY(hromMat, -1, fomMat, SAME_NONZERO_PATTERN);
+
+  MatNorm(romMat, NORM_FROBENIUS, &normROM);
+  MatNorm(hromMat, NORM_FROBENIUS, &normHROM);
+
+  MatNorm(fomMat, NORM_FROBENIUS, &normFOM);
+
+  printf("Mean Square Error for ROM: %0.16e\n", normROM/normFOM);
+  printf("Mean Square Error for HROM: %0.16e\n", normHROM/normFOM);
+
+
+
+  MatDestroy(&fomMat);
+  MatDestroy(&romMat);
+  MatDestroy(&hromMat);
+  VecDestroy(&fomVec);
+  VecDestroy(&romVec);
+  VecDestroy(&hromVec);
 }
 
 
@@ -1171,20 +1599,28 @@ int main(int argc, char** argv) {
   ierr = xf_ParseArg(ArgIn, argc, argv, xflow->KeyValueArg);
   if (ierr == xf_FORCE_QUIT) return xf_OK;
   if (ierr != xf_OK) return xf_Error(ierr);
+    yk_Init(ykflow, multiquation, fom, reduced);
+
   //---------------------------------------------------------------------------
   // Run the Forward Order Model (FOM) on xflow
   //---------------------------------------------------------------------------
   yk_forwardSimulation(xflow);
 
-  //---------------------------------------------------------------------------
-  // Initialization on ykflow
-  //---------------------------------------------------------------------------
-  yk_Init(ykflow, multiquation, fom, reduced);
+
+  /* //--------------------------------------------------------------------------- */
+  /* // Initialization on ykflow */
+  /* //--------------------------------------------------------------------------- */
+
 
   //---------------------------------------------------------------------------
   // Run Model Reduction Routines/ WST-LSPG
   //---------------------------------------------------------------------------
   yk_RunErrorEstChaos(ykflow, multiquation, fom, rom, hrom, argv, reduced);
+  //---------------------------------------------------------------------------
+  // PostProcess everything
+  //---------------------------------------------------------------------------
+
+
   //---------------------------------------------------------------------------
   // Destroy everything
   //---------------------------------------------------------------------------
@@ -1193,6 +1629,8 @@ int main(int argc, char** argv) {
   free(fom->self->index);
   free(fom->self);
 
+
+
  /*  xf_Call(xf_DestroyVectorGroup(xflow->UG, xfe_True, xfe_True)); */
   xf_Call(xf_DestroyTimeHistData(xflow->TimeHistData));
   xf_CloseEqnSetLibrary(&xflow->All);
@@ -1200,6 +1638,7 @@ int main(int argc, char** argv) {
 
   xf_Call(xf_DestroyKeyValue(xflow->KeyValueArg));
  /*  /\* free(rom->self); *\/ */
+  /* free(reduced->reducedMesh_Os.i_ElemCom); */
   free(reduced->win_i);
   free(reduced->params);
   free(reduced->paramsL);

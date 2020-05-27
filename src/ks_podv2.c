@@ -6,14 +6,14 @@ void createSnapshotState(Universe equation, Galaxy *primal, Mat *snapshot,
   int snapshotCount = floor(primal->time.count/dss)+1; //number of snapshots
   int snapshot_i;
   int systemSize = primal->space.node.count*equation.numStates;
-  
+
   int* index = (int *) malloc (systemSize *sizeof(int));  //array of index vale
   PetscScalar* states =(PetscScalar *) malloc (systemSize*sizeof(PetscScalar));
   Vec primal_i;                        //state: values at node i
   //---------------------------------------------------------------------------
   // I n i t i a l i z a t i o n
   //---------------------------------------------------------------------------
-  for (i=0; i<systemSize; i++)         //fill in the index values 
+  for (i=0; i<systemSize; i++)         //fill in the index values
     index[i] = i;
   MatCreateSeqDense(PETSC_COMM_SELF, systemSize, snapshotCount, NULL, snapshot);
   VecCreateSeq(PETSC_COMM_SELF, systemSize, &primal_i);
@@ -130,7 +130,7 @@ void moorePenrosePseudoInv(Mat A, int rowSize, int colSize, Mat *Aplus){
   PetscInt wtf;
   //----------------------------------------------------------------------------
   //  I n i t i a l i z a t i o n
-  //----------------------------------------------------------------------------
+  //---------------------------------------------------------------------------
   for (i=0; i<rowSize; i++)
     rowIndex[i] = i;
   for (i=0; i<colSize; i++)
@@ -151,10 +151,24 @@ void moorePenrosePseudoInv(Mat A, int rowSize, int colSize, Mat *Aplus){
   SVDSetDimensions(svd, colSize,
                    PETSC_DEFAULT, PETSC_DEFAULT);
   SVDSolve(svd);
+  /* SVDConvergedReason reason; */
+  /* SVDGetConvergedReason(svd, &reason); */
+  /* printf("%d\n", reason); */
+  /* printf("REASON\n"); */
+  /* getchar(); */
+
   SVDGetConverged(svd, &wtf);
   for (i=0; i<wtf; i++){ //Iterate through the number of converged iteratio
     SVDGetSingularTriplet(svd, i, &sigma, singular, decomposition);
-    sigma = 1.0/sigma;
+    /* if (sigma = 0){ */
+    /*   fprintf(stderr, "Division by zero! Exiting...\n"); */
+    /* } */
+    /* printf("sigma %g\n", sigma); */
+    /* getchar(); */
+    if (sigma >0)
+      sigma = 1.0/sigma;
+    else
+      sigma = sigma;
     VecScale(decomposition, sigma);
     VecGetValues(singular, rowSize, rowIndex, singular_i);
     for (j=0; j<rowSize; j++){
@@ -175,7 +189,7 @@ void moorePenrosePseudoInv(Mat A, int rowSize, int colSize, Mat *Aplus){
   free(rowIndex);
   free(colIndex);
   free(singular_i);
-  
+
 }
 
 void properOrthogonalDecompose(Mat snapshot, int systemSize,
@@ -216,17 +230,17 @@ void properOrthogonalDecompose(Mat snapshot, int systemSize,
   // Truncate the first its<=Ns left singular vectors to obtain the ROB matrix
   //----------------------------------------------------------------------------
   SVDGetDimensions(singularValueDecomposition, numSingularValues, NULL, NULL);
-  MatCreateSeqDense(PETSC_COMM_SELF, systemSize, *numSingularValues, NULL, A); 
+  MatCreateSeqDense(PETSC_COMM_SELF, systemSize, *numSingularValues, NULL, A);
   for (i=0; i<*numSingularValues; i++){ //Iterate through the numerged iteratio
     SVDGetSingularTriplet(singularValueDecomposition, i,
-                          &sigma, singular, NULL);    //extract rotation     
+                          &sigma, singular, NULL);    //extract rotation
     VecGetValues(singular, systemSize, index, A_i); //Retrieve u_i
     MatSetValues(*A, systemSize, index, 1, &i, A_i,INSERT_VALUES); //Set to ROB
   }
   MatAssemblyBegin(*A, MAT_FINAL_ASSEMBLY); //No need to change the ROB Mat
   MatAssemblyEnd(*A, MAT_FINAL_ASSEMBLY);   //No need to change the ROB Mat
   //----------------------------------------------------------------------------
-  // T e r m i n a t i o n 
+  // T e r m i n a t i o n
   //----------------------------------------------------------------------------
   VecDestroy(&singular);
   SVDDestroy(&singularValueDecomposition);

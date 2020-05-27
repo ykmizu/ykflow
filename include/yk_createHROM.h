@@ -41,6 +41,8 @@
 #include "xf_Arg.h"
 /* #include "xf_AdaptChaos_Common.h"  */
 
+void yk_precomputeCoefMat(Mat Z, Is_it *reduced);
+
 void yk_createReducedOrderModel_ST(yk_PrimalSolver *ykflow,
                                    Multiverse *multiquation, Cluster *primal,
                                    Is_it *reduced);
@@ -48,7 +50,6 @@ void yk_createReducedOrderModel_ST(yk_PrimalSolver *ykflow,
 void yk_runReducedOrderModel_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
 			     Cluster *primal, Cluster *primalApprox,
 			     Is_it *reduced);
-void yk_storeBasisInfoWindow(int window_num_i, Is_it *reduced);
 
 void yk_destroyReducedOrderModel_ST(yk_PrimalSolver *ykflow,
                                     Multiverse *multiquation, Cluster *primal,
@@ -60,6 +61,18 @@ void yk_createReducedOrderModel(yk_PrimalSolver *ykflow,
 void yk_runReducedOrderModel(yk_PrimalSolver *ykflow, Multiverse *multiquation,
 			     Cluster *primal, Cluster *primalApprox,
 			     Is_it *reduced);
+void yk_createHyperReducedOrderModel_ST(yk_PrimalSolver *ykflow,
+                                        Multiverse *multiquation,
+                                        Cluster *primal, Cluster *primalApprox,
+                                        Is_it *reduced);
+void yk_runHyperReducedOrderModel_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
+			     Cluster *primal, Cluster *primalApprox,
+			     Is_it *reduced);
+
+
+void yk_destroyHyperReducedOrderModel_ST(yk_PrimalSolver *ykflow,
+					 Multiverse *multiquation, Cluster *primal,
+					 Cluster *primalApprox, Is_it *reduced);
 
 void yk_createHyperReducedOrderModel(yk_PrimalSolver *ykflow,
 				     Multiverse *multiquation, Cluster *primal,
@@ -69,9 +82,10 @@ void yk_runHyperReducedOrderModel(yk_PrimalSolver *ykflow,
 				  Multiverse *multiquation, Cluster *primal,
 				  Cluster *primalApprox,Is_it *reduced);
 
-void minElements(Multiverse *multiquation, Cluster *primal, int *nodeSet,
-                 Is_it *reduced);
-
+/* void minElements(Multiverse *multiquation, Cluster *primal, int *nodeSet, /\*  *\/ */
+/*                  Mat *spaceIdentity, Is_it *reduced); */
+void minElements(Multiverse *multiquation, Cluster *primal, int *nodeSet, int *timeSet,
+                 Mat *spaceIdentity, Mat *ZZ, Is_it *reduced);
 void findApproxMesh(yk_PrimalSolver *ykflow, Multiverse *multiquation,
 		    Cluster *primal, Cluster *primalApprox, Is_it *reduced);
 

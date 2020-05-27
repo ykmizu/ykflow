@@ -392,7 +392,7 @@ void yk_findAdjacentElems(yk_PrimalSolver *ykflow, Cluster *primal, int elem,
   }
 }
 
-void yk_findBoundarySeeds(yk_PrimalSolver *ykflow, Multiverse* multiquation,
+void yk_findBound9arySeeds(yk_PrimalSolver *ykflow, Multiverse* multiquation,
 			  Cluster *primal, int nSampNodes, int *numSeeds,
 			  int *nodeSet){
   //------------------------------------//-------------------------------------
@@ -1126,204 +1126,204 @@ int yk_forwardSimulation(yk_Xflow *xflow){
   //---------------------------------------------------------------------------
   // Destroy and Free anything tht should be dealt with
   //---------------------------------------------------------------------------
-  xf_Call(xf_SetKeyValue/*                         Real(xflow->All->Param->KeyValue, "Time", Time0)); */
-/*   xf_Call(xf_DestroyTimeHistData(TimeHistData)); */
-/*   xf_DestroyAdaptInfo(&AdaptInfo, xfe_False); */
-/*   return ierr; */
-/* } */
+  xf_Call(xf_SetKeyValueReal(xflow->All->Param->KeyValue, "Time", Time0));
+  xf_Call(xf_DestroyTimeHistData(TimeHistData));
+  xf_DestroyAdaptInfo(&AdaptInfo, xfe_False);
+  return ierr;
+}
 
-/* void yk_inject(yk_PrimalSolver *ykflow, Multiverse *multiquation, */
-/* 	       Galaxy *primal_H, Galaxy * primal_h, Is_it *reduced){ */
-/*   //------------------------------------//------------------------------------- */
-/*   // Variables here                     // Comments section                 */
-/*   //------------------------------------//------------------------------------- */
-/*   int ierr; */
-/*   int OrderIncrement = 1;   */
-/*   yk_Xflow *xflow = (yk_Xflow *) ykflow->solver; */
-/*   Vec vecObj; */
-/*   xf_VectorGroup *UG_h; */
-/*   int hrom = reduced->hrom; */
-/*   int reducedSolution = reduced->reducedSolution; */
-/*   //--------------------------------------------------------------------------- */
-/*   // Intiialization */
-/*   //--------------------------------------------------------------------------- */
-/*   reduced->hrom = 0; */
-/*   reduced->reducedSolution = 0; */
-/*   VecCreate(PETSC_COMM_SELF, &vecObj); */
-/*   VecSetSizes(vecObj, primal_h->systemSize, primal_h->systemSize); */
-/*   VecSetType(vecObj, VECSEQ); */
-/*   //--------------------------------------------------------------------------- */
-/*   // Implementation */
-/*   //--------------------------------------------------------------------------- */
-/*   ierr =xf_Error(xf_FindSimilarVectorGroup                                 */
-/* 		 (xflow->All, xflow->UG_H, "UG_h", xfe_True, xfe_False,    */
-/* 		  NULL, &UG_h, NULL)); */
-/*   yk_array2VectorGroup(xflow->UG_H, primal_H); */
-/*   array2Vec(multiquation->equation, primal_H, vecObj); */
-/*   ierr = xf_Error(xf_SetVectorGroup(xflow->UG_H, xfe_Set, UG_h));  */
-/*   // this thing destroys data */
-/*   //Also i need to make sure to specify time.. that primal->self time and */
-/*   //primal_H time match up */
-/*   xf_Call(xf_SetKeyValueReal(xflow->All->Param->KeyValue, "Time", */
-/* 			     primal_H->time.node));  */
-/*   xf_Call(xf_ProjectVectorGroupInPlace_OrderIncrement */
-/*           (xflow->All->Mesh, NULL, UG_h, OrderIncrement)); */
-/*   yk_vector2VecGroup(xflow->All, UG_h, primal_h, vecObj, reduced); */
-/*   vec2Array(multiquation->equation, primal_h, vecObj); */
-/*   //--------------------------------------------------------------------------- */
-/*   // Destroy Everything */
-/*   //--------------------------------------------------------------------------- */
-/*   reduced->hrom = hrom; */
-/*   reduced->reducedSolution = reducedSolution; */
-/*   xf_Call(xf_DestroyVectorGroup(UG_h, xfe_True, xfe_True));   */
-/*   VecDestroy(&vecObj); */
-/* } */
+void yk_inject(yk_PrimalSolver *ykflow, Multiverse *multiquation,
+	       Galaxy *primal_H, Galaxy * primal_h, Is_it *reduced){
+  //------------------------------------//-------------------------------------
+  // Variables here                     // Comments section                
+  //------------------------------------//-------------------------------------
+  int ierr;
+  int OrderIncrement = 1;  
+  yk_Xflow *xflow = (yk_Xflow *) ykflow->solver;
+  Vec vecObj;
+  xf_VectorGroup *UG_h;
+  int hrom = reduced->hrom;
+  int reducedSolution = reduced->reducedSolution;
+  //---------------------------------------------------------------------------
+  // Intiialization
+  //---------------------------------------------------------------------------
+  reduced->hrom = 0;
+  reduced->reducedSolution = 0;
+  VecCreate(PETSC_COMM_SELF, &vecObj);
+  VecSetSizes(vecObj, primal_h->systemSize, primal_h->systemSize);
+  VecSetType(vecObj, VECSEQ);
+  //---------------------------------------------------------------------------
+  // Implementation
+  //---------------------------------------------------------------------------
+  ierr =xf_Error(xf_FindSimilarVectorGroup                                
+		 (xflow->All, xflow->UG_H, "UG_h", xfe_True, xfe_False,   
+		  NULL, &UG_h, NULL));
+  yk_array2VectorGroup(xflow->UG_H, primal_H);
+  array2Vec(multiquation->equation, primal_H, vecObj);
+  ierr = xf_Error(xf_SetVectorGroup(xflow->UG_H, xfe_Set, UG_h)); 
+  // this thing destroys data
+  //Also i need to make sure to specify time.. that primal->self time and
+  //primal_H time match up
+  xf_Call(xf_SetKeyValueReal(xflow->All->Param->KeyValue, "Time",
+			     primal_H->time.node)); 
+  xf_Call(xf_ProjectVectorGroupInPlace_OrderIncrement
+          (xflow->All->Mesh, NULL, UG_h, OrderIncrement));
+  yk_vector2VecGroup(xflow->All, UG_h, primal_h, vecObj, reduced);
+  vec2Array(multiquation->equation, primal_h, vecObj);
+  //---------------------------------------------------------------------------
+  // Destroy Everything
+  //---------------------------------------------------------------------------
+  reduced->hrom = hrom;
+  reduced->reducedSolution = reducedSolution;
+  xf_Call(xf_DestroyVectorGroup(UG_h, xfe_True, xfe_True));  
+  VecDestroy(&vecObj);
+}
 
 
-/* void yk_estimateErrorXflow(yk_PrimalSolver *ykflow, Multiverse *multiquation, */
-/* 			  Cluster *primal_h,Cluster *primal_H, Cluster *primal, */
-/* 			  Is_it *reduced){ */
-/*   //------------------------------------//------------------------------------- */
-/*   // Variables here                     // Comments section                     */
-/*   //------------------------------------//------------------------------------- */
-/*   int i, j;                             //initialization for iteration */
-/*   int ierr; */
-/*   int left, right; */
-/*   int numfiles = primal->self->time.count/reduced->nTimeSegs; */
-/*   int hrom; */
-/*   int _size; */
-/*   int IsItreduced; */
-/*   int timeSolveNum = 0; */
-/*   int systemReducedSize; */
-/*   char adjointName[1000]; */
-/*   double delJ_psi = 0; */
-/*   double delJ_dpsi = 0; */
-/*   double del_psi = 0; */
-/*   double del_dpsi = 0; */
-/*   double timeFinal = primal->self->time.globalT_f; */
-/*   double timeInitial = primal->self->time.globalT_0; */
-/*   double timelength = (timeFinal-timeInitial)/reduced->nTimeSegs; */
-/*   Vec residual, residualReduced; */
-/*   Vec residualMinv, residualSamples; */
-/*   Vec psi, dpsi; */
-/*   Vec psifull, psihfinal; */
-/*   Universe _eqnOfInterest; */
-/*   Universe _eqnOfInterestFull = multiquation->equation; */
-/*   Galaxy *_solOfInterest; */
-/*   Cluster *Psi1 = (Cluster *) malloc (sizeof(Cluster)); */
-/*   yk_Xflow *xflow = (yk_Xflow *) ykflow->solver;   */
-/*   xf_VectorGroup *Adjoint; */
-/*   Psi1->self = (Galaxy *) malloc (sizeof(Galaxy)); */
-/*   //--------------------------------------------------------------------------- */
-/*   // Malloc and initialize here */
-/*   //--------------------------------------------------------------------------- */
-/*   hrom = reduced->hrom; */
-/*   IsItreduced = reduced->reducedSolution; */
-/*   if (reduced->reducedSolution == 1){ */
-/*     _eqnOfInterest = multiquation->equationReduced; */
-/*     _solOfInterest = primal->reduced; */
-/*     _size = reduced->nBasisFuncs; */
-/*   }else{ */
-/*     _eqnOfInterest = multiquation->equationLSS; */
-/*     _solOfInterest = primal->self; */
-/*     _size = primal_h->self->systemSize;  */
-/*   } */
-/*   systemReducedSize = _eqnOfInterest.numStates; //Size of the LSS system  */
-/*   VecCreateSeq(PETSC_COMM_SELF, _size, &residualReduced); */
-/*   VecCreateSeq(PETSC_COMM_SELF, primal_h->self->systemSize, &residual); */
-/*   VecCreateSeq(PETSC_COMM_SELF, primal_h->self->systemSize, &residualMinv); */
-/*   VecCreateSeq(PETSC_COMM_SELF, reduced->nSampleNodes, &residualSamples); */
-/*   VecCreateSeq(PETSC_COMM_SELF, systemReducedSize, &psi); */
-/*   VecCreateSeq(PETSC_COMM_SELF, systemReducedSize, &dpsi); */
-/*   VecCreateSeq(PETSC_COMM_SELF, primal_h->self->systemSize, &psifull); */
-/*   VecCreateSeq(PETSC_COMM_SELF, primal_h->self->systemSize, &psihfinal); */
-/*   //--------------------------------------------------------------------------- */
-/*   // Implementation */
-/*   //--------------------------------------------------------------------------- */
-/*   // set to 0 cause want  */
-/*   reduced->hrom = 0; */
-/*   reduced->reducedSolution = 0; */
-/*   // begin error estimation for time segments */
-/*   ierr = xf_Error(xf_FindSimilarVectorGroup */
-/* 		  (xflow->All, xflow->UG_h, "Adjoint", xfe_True, xfe_False, */
-/* 		   NULL, &Adjoint, NULL)); */
-/*   for (i=0; i<reduced->nTimeSegs; i++){ */
-/*     left = numfiles*i; */
-/*     right = numfiles*(i+1); */
-/*     ks_copyUtype(_solOfInterest, Psi1->self);                                   */
-/*     Psi1->self->time.t_0 = timelength*i; //Refers to the time t of the left n   */
-/*     Psi1->self->time.t_f = timelength*(i+1); //Refers to the time t of the      */
-/*     Psi1->self->basis.p = 0;                                                    */
-/*     Psi1->self->basis.nodes = 1;                                                */
-/*     Psi1->self->space.elem.count = 1;                                           */
-/*     Psi1->self->space.node.count = 1;                                           */
-/*     sprintf(Psi1->clusterId, "psi1_seg_%d",i);                                  */
-/*     sprintf(Psi1->self->utypeId, "psi1_seg_%d",i);                              */
-/*     createSystem(_eqnOfInterest, Psi1->self);                                   */
-/*     strcpy(adjointName, Psi1->self->id);                                        */
-/*     for (j=left; j<right+1; j++){ //iterate through each time segment  */
-/*       if (j > 0){ */
-/* 	ks_readSolution(_eqnOfInterestFull, primal_H->self, j); */
-/* 	yk_inject(ykflow, multiquation,primal_H->self,primal_h->self, reduced); */
-/* 	primal_h->self->time.node = primal_H->self->time.node; */
-/* 	yk_xflow_totalResidual(ykflow, multiquation, primal_h, residual, NULL, */
-/* 			       reduced, timeSolveNum); */
-/*         vec2Array(_eqnOfInterestFull, primal_h->self, residual); */
-/* 	yk_MultInvMassMatrixArray(ykflow, primal_h->self,residualMinv,reduced); */
-/* 	if (IsItreduced == 1) */
-/* 	  MatMultTranspose(reduced->rOBState, residualMinv, residualReduced); */
-/* 	else */
-/* 	  VecCopy(residualMinv, residualReduced); */
-/* 	//--------------------------------------------------------------------- */
-/* 	// Adjoint Manipulation */
-/* 	//--------------------------------------------------------------------- */
-/* 	ks_readSolution(_eqnOfInterest, Psi1->self, j); */
-/* 	array2Vec(_eqnOfInterest, Psi1->self, psi); */
-/* 	if (IsItreduced == 1) */
-/* 	  MatMult(reduced->rOBState, psi, psifull); */
-/* 	else */
-/* 	  VecCopy(psi, psifull); */
-/* 	//Multiply by delPsi */
-/*         vec2Array(_eqnOfInterestFull, primal_h->self, psifull);  */
-/*         yk_array2VectorGroup(Adjoint, primal_h->self); */
-/* 	xf_Call(xf_ProjectVectorGroupInPlace_OrderIncrement  //project */
-/* 		(xflow->All->Mesh, NULL, Adjoint, -1)); */
-/* 	xf_Call(xf_ProjectVectorGroupInPlace_OrderIncrement  //inject           */
-/* 		(xflow->All->Mesh, NULL, Adjoint, 1)); */
-/* 	yk_vector2VecGroup(xflow->All, Adjoint, primal_h->self, psihfinal, */
-/* 			   reduced); */
-/*         VecAXPY(psifull, -1, psihfinal); */
-/*         if (IsItreduced == 1) */
-/* 	  MatMultTranspose(reduced->rOBState, psifull, dpsi); */
-/* 	else */
-/* 	  VecCopy(psifull, dpsi); */
-/* 	//--------------------------------------------------------------------- */
-/* 	// Error Estimation */
-/* 	//--------------------------------------------------------------------- */
-/* 	VecDot(psi, residualReduced, &del_psi); */
-/* 	VecDot(dpsi, residualReduced, &del_dpsi); */
-/*         if (j==left || j ==right){ */
-/* 	  del_psi *= primal->self->time.dt/2.0;  */
-/*           del_dpsi *= primal->self->time.dt/2.0;  */
-/* 	}else{ */
-/* 	  del_psi *= primal->self->time.dt;        */
-/*           del_dpsi *= primal->self->time.dt; */
-/* 	} */
-/* 	delJ_psi -= del_psi; */
-/* 	delJ_dpsi -=del_dpsi; */
-/*       } */
-/*     } */
-/*     destroySystem(_eqnOfInterest, Psi1->self); */
-/*   } */
-/*   //--------------------------------------------------------------------------- */
-/*   // Assigned all the error estimates to the reduced structure */
-/*   //--------------------------------------------------------------------------- */
-/*   reduced->delJ_psi = delJ_psi; */
-/*   reduced->delJ_dpsi = delJ_dpsi; */
-/*   //--------------------------------------------------------------------------- */
-/*   // Destroy everything */
-/*   //--------------------------------------------------------------------------- */
-/*   xf_Call(xf_DestroyVectorGroup(Adjoint, xfe_True, xfe_True)); 
+void yk_estimateErrorXflow(yk_PrimalSolver *ykflow, Multiverse *multiquation,
+			  Cluster *primal_h,Cluster *primal_H, Cluster *primal,
+			  Is_it *reduced){
+  //------------------------------------//-------------------------------------
+  // Variables here                     // Comments section                    
+  //------------------------------------//-------------------------------------
+  int i, j;                             //initialization for iteration
+  int ierr;
+  int left, right;
+  int numfiles = primal->self->time.count/reduced->nTimeSegs;
+  int hrom;
+  int _size;
+  int IsItreduced;
+  int timeSolveNum = 0;
+  int systemReducedSize;
+  char adjointName[1000];
+  double delJ_psi = 0;
+  double delJ_dpsi = 0;
+  double del_psi = 0;
+  double del_dpsi = 0;
+  double timeFinal = primal->self->time.globalT_f;
+  double timeInitial = primal->self->time.globalT_0;
+  double timelength = (timeFinal-timeInitial)/reduced->nTimeSegs;
+  Vec residual, residualReduced;
+  Vec residualMinv, residualSamples;
+  Vec psi, dpsi;
+  Vec psifull, psihfinal;
+  Universe _eqnOfInterest;
+  Universe _eqnOfInterestFull = multiquation->equation;
+  Galaxy *_solOfInterest;
+  Cluster *Psi1 = (Cluster *) malloc (sizeof(Cluster));
+  yk_Xflow *xflow = (yk_Xflow *) ykflow->solver;  
+  xf_VectorGroup *Adjoint;
+  Psi1->self = (Galaxy *) malloc (sizeof(Galaxy));
+  //---------------------------------------------------------------------------
+  // Malloc and initialize here
+  //---------------------------------------------------------------------------
+  hrom = reduced->hrom;
+  IsItreduced = reduced->reducedSolution;
+  if (reduced->reducedSolution == 1){
+    _eqnOfInterest = multiquation->equationReduced;
+    _solOfInterest = primal->reduced;
+    _size = reduced->nBasisFuncs;
+  }else{
+    _eqnOfInterest = multiquation->equationLSS;
+    _solOfInterest = primal->self;
+    _size = primal_h->self->systemSize; 
+  }
+  systemReducedSize = _eqnOfInterest.numStates; //Size of the LSS system 
+  VecCreateSeq(PETSC_COMM_SELF, _size, &residualReduced);
+  VecCreateSeq(PETSC_COMM_SELF, primal_h->self->systemSize, &residual);
+  VecCreateSeq(PETSC_COMM_SELF, primal_h->self->systemSize, &residualMinv);
+  VecCreateSeq(PETSC_COMM_SELF, reduced->nSampleNodes, &residualSamples);
+  VecCreateSeq(PETSC_COMM_SELF, systemReducedSize, &psi);
+  VecCreateSeq(PETSC_COMM_SELF, systemReducedSize, &dpsi);
+  VecCreateSeq(PETSC_COMM_SELF, primal_h->self->systemSize, &psifull);
+  VecCreateSeq(PETSC_COMM_SELF, primal_h->self->systemSize, &psihfinal);
+  //---------------------------------------------------------------------------
+  // Implementation
+  //---------------------------------------------------------------------------
+  // set to 0 cause want 
+  reduced->hrom = 0;
+  reduced->reducedSolution = 0;
+  // begin error estimation for time segments
+  ierr = xf_Error(xf_FindSimilarVectorGroup
+		  (xflow->All, xflow->UG_h, "Adjoint", xfe_True, xfe_False,
+		   NULL, &Adjoint, NULL));
+  for (i=0; i<reduced->nTimeSegs; i++){
+    left = numfiles*i;
+    right = numfiles*(i+1);
+    ks_copyUtype(_solOfInterest, Psi1->self);                                  
+    Psi1->self->time.t_0 = timelength*i; //Refers to the time t of the left n  
+    Psi1->self->time.t_f = timelength*(i+1); //Refers to the time t of the     
+    Psi1->self->basis.p = 0;                                                   
+    Psi1->self->basis.nodes = 1;                                               
+    Psi1->self->space.elem.count = 1;                                          
+    Psi1->self->space.node.count = 1;                                          
+    sprintf(Psi1->clusterId, "psi1_seg_%d",i);                                 
+    sprintf(Psi1->self->utypeId, "psi1_seg_%d",i);                             
+    createSystem(_eqnOfInterest, Psi1->self);                                  
+    strcpy(adjointName, Psi1->self->id);                                       
+    for (j=left; j<right+1; j++){ //iterate through each time segment 
+      if (j > 0){
+	ks_readSolution(_eqnOfInterestFull, primal_H->self, j);
+	yk_inject(ykflow, multiquation,primal_H->self,primal_h->self, reduced);
+	primal_h->self->time.node = primal_H->self->time.node;
+	yk_xflow_totalResidual(ykflow, multiquation, primal_h, residual, NULL,
+			       reduced, timeSolveNum);
+        vec2Array(_eqnOfInterestFull, primal_h->self, residual);
+	yk_MultInvMassMatrixArray(ykflow, primal_h->self,residualMinv,reduced);
+	if (IsItreduced == 1)
+	  MatMultTranspose(reduced->rOBState, residualMinv, residualReduced);
+	else
+	  VecCopy(residualMinv, residualReduced);
+	//---------------------------------------------------------------------
+	// Adjoint Manipulation
+	//---------------------------------------------------------------------
+	ks_readSolution(_eqnOfInterest, Psi1->self, j);
+	array2Vec(_eqnOfInterest, Psi1->self, psi);
+	if (IsItreduced == 1)
+	  MatMult(reduced->rOBState, psi, psifull);
+	else
+	  VecCopy(psi, psifull);
+	//Multiply by delPsi
+        vec2Array(_eqnOfInterestFull, primal_h->self, psifull); 
+        yk_array2VectorGroup(Adjoint, primal_h->self);
+	xf_Call(xf_ProjectVectorGroupInPlace_OrderIncrement  //project
+		(xflow->All->Mesh, NULL, Adjoint, -1));
+	xf_Call(xf_ProjectVectorGroupInPlace_OrderIncrement  //inject          
+		(xflow->All->Mesh, NULL, Adjoint, 1));
+	yk_vector2VecGroup(xflow->All, Adjoint, primal_h->self, psihfinal,
+			   reduced);
+        VecAXPY(psifull, -1, psihfinal);
+        if (IsItreduced == 1)
+	  MatMultTranspose(reduced->rOBState, psifull, dpsi);
+	else
+	  VecCopy(psifull, dpsi);
+	//---------------------------------------------------------------------
+	// Error Estimation
+	//---------------------------------------------------------------------
+	VecDot(psi, residualReduced, &del_psi);
+	VecDot(dpsi, residualReduced, &del_dpsi);
+        if (j==left || j ==right){
+	  del_psi *= primal->self->time.dt/2.0; 
+          del_dpsi *= primal->self->time.dt/2.0; 
+	}else{
+	  del_psi *= primal->self->time.dt;       
+          del_dpsi *= primal->self->time.dt;
+	}
+	delJ_psi -= del_psi;
+	delJ_dpsi -=del_dpsi;
+      }
+    }
+    destroySystem(_eqnOfInterest, Psi1->self);
+  }
+  //---------------------------------------------------------------------------
+  // Assigned all the error estimates to the reduced structure
+  //---------------------------------------------------------------------------
+  reduced->delJ_psi = delJ_psi;
+  reduced->delJ_dpsi = delJ_dpsi;
+  //---------------------------------------------------------------------------
+  // Destroy everything
+  //---------------------------------------------------------------------------
+  xf_Call(xf_DestroyVectorGroup(Adjoint, xfe_True, xfe_True)); 
   VecDestroy(&residual);
   VecDestroy(&residualSamples);
   VecDestroy(&residualMinv);
@@ -1489,9 +1489,9 @@ int main(int argc, char *argv[]){
   //---------------------------------------------------------------------------
   SlepcInitialize(&argc, &argv, NULL, NULL);                               
   PetscViewerPushFormat(PETSC_VIEWER_STDOUT_SELF, PETSC_VIEWER_ASCII_MATLAB);
-  /\* Initialize parallel-run (no effect in serial) *\/
+  /* Initialize parallel-run (no effect in serial) */
   xf_Call(xf_MPI_Init(&argc, &argv));
-  /\* Determine myRank*\/
+  /* Determine myRank*/
   xf_Call(xf_MPI_GetRank(&myRank, &nProc));
   // initialize key-value
   xf_Call(xf_CreateKeyValue(&xflow->KeyValueArg));
