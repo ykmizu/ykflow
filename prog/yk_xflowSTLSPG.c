@@ -1501,7 +1501,7 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
     // Reduced Order Modeling
     //-------------------------------------------------------------------------
     printf("        --------------------------------------------------------------\n");
-    printf("        |          Windowed ST Least-Squares Petrov-Galerkin          |\n", i);
+    printf("        |          Windowed ST Least-Squares Petrov-Galerkin          |\n");;
     printf("        --------------------------------------------------------------\n");
     yk_createReducedOrderModel_ST(ykflow, multiquation, fom, reduced);
     yk_runReducedOrderModel_ST(ykflow, multiquation, fom, rom, reduced);
@@ -1510,7 +1510,7 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
     // Hyper-Reduced Order Modeling
     //-------------------------------------------------------------------------
     printf("        --------------------------------------------------------------\n");
-    printf("        |          Windowed ST Gauss Newton w/ Approx Tensors          |\n", i);
+    printf("        |          Windowed ST Gauss Newton w/ Approx Tensors          |\n");
     printf("        --------------------------------------------------------------\n");
 
     yk_createHyperReducedOrderModel_ST(ykflow, multiquation, fom, hrom,reduced);
