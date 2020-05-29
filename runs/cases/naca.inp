@@ -9,12 +9,12 @@
 % Parameters
 %------------------------------------------------------------------------------
 numParams = 3
-params = 0.70 8 10000
+params = 0.70 8.4 10000
 
 %------------------------------------------------------------------------------
 % Reduced Order Modeling information
 %------------------------------------------------------------------------------
-paramsL = 0.7 9 10000
+paramsL = 0.7 8 10000
 paramsH = 0.7 10 10000
 dparams = 1 1 1
 %numBasisFunctions = 3
@@ -26,8 +26,8 @@ engyBasisTime = 0.999
 engyReBasisFunctions = 1
 engyReBasisTime = 1
 
-numTimeSegments =1
-numSubSpacesPerWindow = 1
+numTimeSegments =2
+numSubSpacesPerWindow = 2
 
 %------------------------------------------------------------------------------
 % Hyper Reduced Order Modeling information
@@ -35,7 +35,7 @@ numSubSpacesPerWindow = 1
 pSampleElems = 1
 %numSampleNodes =
 %numSampleSpace = 16
-numSampleTime =5
+numSampleTime =3
 %numBasisFunctionsRJ = 1000
 %------------------------------------------------------------------------------
 % LSS STUFF HERE Activate

@@ -38,7 +38,7 @@ ENDBLOCK
 STARTBLOCK IC
 
 ICType = FullState
-Data = 1.0 0.9902680687415704 0.13917310096006544 4.144314868804666
+Data = 1.0 0.9892723329629883 0.14608302856241162 4.144314868804666
 
 ENDBLOCK
 
@@ -56,11 +56,11 @@ Data = 0.0
 
 BFGTitle = Inflow
 BCType = FullState
-Data = 1.0 0.9902680687415704 0.13917310096006544 4.144314868804666
+Data = 1.0 0.9892723329629883 0.14608302856241162 4.144314868804666
 
 BFGTitle = Outflow
 BCType = FullState
-Data = 1.0 0.9902680687415704 0.13917310096006544 4.144314868804666
+Data = 1.0 0.9892723329629883 0.14608302856241162 4.144314868804666
 
 ENDBLOCK
 
@@ -76,21 +76,21 @@ OutputName = Drag
 OutputType = BoundaryIntegral
 UsesFlux = True
 FluxComponentNames = XMomentum YMomentum
-FluxComponentWeights = 0.9902680687415704 0.13917310096006544
+FluxComponentWeights = 0.9892723329629883 0.14608302856241162
 BFGTitles = Airfoil
 
 OutputName = Lift
 OutputType = BoundaryIntegral
 UsesFlux = True
 FluxComponentNames = XMomentum YMomentum
-FluxComponentWeights = -0.13917310096006544 0.9902680687415704
+FluxComponentWeights = -0.14608302856241162 0.9892723329629883
 BFGTitles = Airfoil
 
 OutputName = LiftIntegral
 OutputType = BoundaryIntegral
 UsesFlux = True
 FluxComponentNames = XMomentum YMomentum
-FluxComponentWeights = -0.13917310096006544 0.9902680687415704
+FluxComponentWeights = -0.14608302856241162 0.9892723329629883
 BFGTitles = Airfoil
 TimeNorm = Integral
 StartTime = 0
@@ -100,7 +100,7 @@ OutputName = DragIntegral
 OutputType = BoundaryIntegral
 UsesFlux = True
 FluxComponentNames = XMomentum YMomentum
-FluxComponentWeights = 0.9902680687415704 0.13917310096006544
+FluxComponentWeights = 0.9892723329629883 0.14608302856241162
 BFGTitles = Airfoil
 TimeNorm = Integral
 StartTime = 0
