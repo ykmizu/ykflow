@@ -63,8 +63,7 @@ Mat * yk_createSnapshotState(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   for (p = 0; p< reduced->numParamSet; p++){
     //Retrieve the data set name and enter that directory
     ykflow->FomName(ykflow, multiquation->equation, reduced, p, fomBuffer);
-    printf("%s\n", fomBuffer);
-    getchar();
+    printf("Retrieving data from %s\n", fomBuffer);
     chdir(fomBuffer);
     getcwd(cwd, sizeof(cwd));
     //Read the state solutions for the initial time in that directory

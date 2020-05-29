@@ -199,7 +199,6 @@ void yk_runReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   //---------------------------------------------------------------------------
   createInitialConditions_ST(ykflow, multiquation, primal,
 			     &reduced->ST_rOBState, &init, reduced);
-
   vec2Array(*_eqnRcd,primalApprox->reduced,primalApprox->reduced->space, init);
   ks_printSolution(*_eqnRcd, primalApprox->reduced, primal->self->time.window_i);
   //---------------------------------------------------------------------------

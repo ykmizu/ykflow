@@ -104,7 +104,6 @@ void read_input(int argc, char *argv[], Universe eqn, Galaxy* u_fine,
   //sprintf(outputfile, "%s", argv[2]);
   //else
   sprintf(outputfile, "%s.inp", eqn.nameEqn);
-  printf("%s\n", outputfile);
   input_file = fopen(outputfile, "r");  //open file
   //Check first to see if the file was successfully opened
   if (input_file == NULL){
@@ -209,8 +208,6 @@ void read_input(int argc, char *argv[], Universe eqn, Galaxy* u_fine,
 	    (reduced->numParams*sizeof(double));
 	}else if (strcmp(lines, "params") == 0){
 	  reduced->params[0] = atof(strtok(lines_temp, " "));
-	  printf("%g\n", reduced->params[0]);
-	  getchar();
 	  for (i=1; i<reduced->numParams; i++)
 	    reduced->params[i] = atof(strtok(NULL, " "));
 	}else if (strcmp(lines, "paramsL") == 0){

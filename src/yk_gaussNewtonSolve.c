@@ -210,7 +210,6 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
       primalApprox->self->time.node = i;
       ykflow->Residual(ykflow, multiquation, primalApprox, residualTemp,
       		       dRdUTemp, reduced, innertimesolver);
-
       VecNorm(residualTemp, NORM_2, &val);
       //-----------------------------------------------------------------------
       //Add the residual for time i to a large ass space time vector
@@ -223,7 +222,6 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
       //-----------------------------------------------------------------------
       // Jacobain manipulation
       //-----------------------------------------------------------------------
-
       MatMatMultBAIJ(dRdUTemp, ST_rOBState_i[local_i-1], C);
       MatGetValues(C, size_Xs, index_Xs, basis, nSTBasisIndex, cc);
       MatSetValuesBlocked(dRdU, 1, &bckct_i,1, &we, cc,ADD_VALUES);
