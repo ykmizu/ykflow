@@ -82,7 +82,7 @@ void yk_findAdjacentElems(yk_PrimalSolver *ykflow, Cluster *primal,
     MatSetValue(timeIdentity, j, (*temporalSet)[j], 1, INSERT_VALUES);
   MatAssemblyBegin(timeIdentity, MAT_FINAL_ASSEMBLY);
   MatAssemblyEnd(timeIdentity, MAT_FINAL_ASSEMBLY);
-  for (grpnum=0; grpnum<2; grpnum++)
+  for (grpnum=0; grpnum<xflow->All->Mesh->nElemGroup; grpnum++)
     xflow->All->Mesh->ElemGroup[grpnum].s_nElem = 0;
   //---------------------------------------------------------------------------
   // Initialization
@@ -855,7 +855,7 @@ void yk_xfData2Dat(Galaxy *gObj, xf_VectorGroup *UG, char *jobFile){
   sprintf(files, " %d 1 ", leftNode);
   sprintf(stateInput, "%s_U", jobFile);
   sprintf(numFilesString, "%d", rightNode);
-  char * argv[] =  {"/home/yshimiz/xflow/bin/xf_Data2Text", " -inroot ",
+  char * argv[] =  {"/gpfs1/yshimiz/xflow/bin/xf_Data2Text", " -inroot ",
                     stateInput, " -batch", files,  numFilesString, NULL};
 
   char outputS[200];
@@ -1544,8 +1544,8 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
     yk_destroyReducedOrderModel_ST(ykflow, multiquation, fom, rom, reduced);
     yk_destroyHyperReducedOrderModel_ST(ykflow, multiquation, fom, hrom, reduced);
 
-    xf_Release((void **) xflow->All->Mesh->ElemGroup[0].sElem);
-    xf_Release((void **) xflow->All->Mesh->ElemGroup[1].sElem);
+    for (j=0; j<xflow->All->Mesh->nElemGroup; j++)
+      xf_Release((void **) xflow->All->Mesh->ElemGroup[j].sElem);
 
 }
   MatAssemblyBegin(fomMat, MAT_FINAL_ASSEMBLY);
