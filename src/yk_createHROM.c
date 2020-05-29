@@ -1,5 +1,10 @@
 
 #include "yk_createHROM.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 /*****************************************************************************/
 // FUNCTION Definition: yk_createReducedOrderModel_ST
@@ -1108,6 +1113,7 @@ void createInitialConditions_ST(yk_PrimalSolver *ykflow,
   PetscScalar *state_0 = (PetscScalar *) malloc (primal->self->systemSize*
 						 sizeof(PetscScalar));
   char tempS[1000];
+  struct stat sb = {0};
  //---------------------------------------------------------------------------
   // initialization
   //---------------------------------------------------------------------------
@@ -1134,9 +1140,13 @@ void createInitialConditions_ST(yk_PrimalSolver *ykflow,
 	  mach, alfa, reynolds);
   printf("%s\n", nameOfDir);
   //Go into the folder now
-  chdir(nameOfDir);
-  getcwd(cwd, sizeof(cwd));
-
+  if (stat(nameOfDir, &sb) == 0 && S_ISDIR(sb.st_mode)) {
+    chdir(nameOfDir);
+    getcwd(cwd, sizeof(cwd));
+  } else {
+    perror(nameOfDir);
+    exit(0);
+  }
   //Read the state solutions for the initial time in that directory
   ks_readSolution(multiquation->equation, primal->self, timeNode0);
   array2Data(multiquation->equation, primal->self, state_0);

@@ -1,5 +1,9 @@
 #include "yk_performPOD.h"
-
+#include <stdlib.h>
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 //check check it worked
 
 Mat * yk_createSnapshotState(yk_PrimalSolver *ykflow, Multiverse *multiquation,
@@ -33,6 +37,8 @@ Mat * yk_createSnapshotState(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   char tempS[1000];
   PetscMalloc1(reduced->numParamSet, &snapshot_mu);
   int timeNode0 = primal->self->time.t_0/primal->self->time.dt;
+  struct stat sb = {0};
+
    /* Mat *snapshot_mu = (Mat *) malloc (reduced->numParamSet*sizeof(Mat)); */
   //---------------------------------------------------------------------------
   // Initialization
@@ -64,8 +70,14 @@ Mat * yk_createSnapshotState(yk_PrimalSolver *ykflow, Multiverse *multiquation,
     //Retrieve the data set name and enter that directory
     ykflow->FomName(ykflow, multiquation->equation, reduced, p, fomBuffer);
     printf("Retrieving data from %s\n", fomBuffer);
-    chdir(fomBuffer);
-    getcwd(cwd, sizeof(cwd));
+
+    if (stat(fomBuffer, &sb) == 0 && S_ISDIR(sb.st_mode)) {
+      chdir(fomBuffer);
+      getcwd(cwd, sizeof(cwd));
+    } else {
+      perror(fomBuffer);
+      exit(0);
+    }
     //Read the state solutions for the initial time in that directory
     ks_readSolution(multiquation->equation, primal->self, timeNode0);
     array2Data(multiquation->equation, primal->self, state_0);
