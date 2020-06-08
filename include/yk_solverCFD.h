@@ -69,9 +69,13 @@ typedef int (*ptrGetMassCoef)(yk_PrimalSolver *, Galaxy *, Mat *, Is_it *);
 typedef void (*ptrTargetElem)(yk_PrimalSolver *, Multiverse *, Cluster *,
 			      PetscInt *, Is_it *);
 
+typedef void (*ptrResidualFile)(yk_PrimalSolver *, Multiverse *, Cluster *,
+				Cluster *, Is_it*);
+
 typedef struct yk_PrimalSolver{
   int numElemCol;
   void *solver;
+  char path[xf_MAXSTRLEN];
   ptrFunction Function;
   ptrdFunctiondu dFunctiondu;
   ptrResidual Residual;
@@ -86,6 +90,7 @@ typedef struct yk_PrimalSolver{
   ptrAnyFunction anyFunction;
   ptrFomName FomName;
   ptrGetMassCoef findMassCoefBDF;
+  ptrResidualFile residualSnapshotFile;
 }yk_PrimalSolver;
 
 yk_PrimalSolver *new_Ykflow();

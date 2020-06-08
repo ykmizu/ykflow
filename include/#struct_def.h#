@@ -98,9 +98,11 @@ typedef struct { //the command module
   int time_method;          //Type of time solver to use
   int typeSolution;         //full order, reduced, hyper-reduced
   double burnT_f;           //Time length to burn to get on the attractor
+  int runFom;
   double j_bar;             //Statistical time average output
   Vec djdu;                 //djdu part
   double error_estimate;    //The output of interest
+  int runFom 
   Time time;                //Contains structure for time variables/data
   Mesh space;               //Contains structure for space variables/data
   BasisFunctions basis;     //Basis functions neccesary for DG methods
@@ -112,7 +114,6 @@ typedef struct { //the command module
   Mat Mij;
   int systemSize;
   PetscInt *index;
-  int runFom;
 }Galaxy; //Galaxies
 
 
@@ -125,8 +126,6 @@ typedef struct{
 
 
 typedef struct{
-  int runFom;
-
   double actualJbar;
   int typeLSS;
   double delJ_psi;

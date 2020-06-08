@@ -120,4 +120,8 @@ void yk_inject(yk_PrimalSolver *ykflow, Multiverse *multiquation,
 void yk_anyArrayFunction(yk_PrimalSolver *ykflow, Multiverse *multiquation,
 			 Galaxy *primal, Vec vecObj, Is_it *reduced);
 
+void yk_createSnapshotResidualFile(yk_PrimalSolver *ykflow,
+				   Multiverse *multiquation, Cluster *fom,
+				   Cluster *rom, Is_it *reduced);
+
 void delete_Xflow(yk_PrimalSolver *ykflow);
