@@ -5,6 +5,11 @@
 #include "yk_XFlow.h"
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 
 //-----------------------------------------------------------------------------
 // Calls the xflow solver. ykflow solver inherits the xflow specific functions
@@ -25,6 +30,7 @@ yk_PrimalSolver* new_Xflow(){
   ykflow->minElements = yk_findElementOfTarget;
   ykflow->findMassCoefBDF = yk_getOffDiagonalJacobiansGroup;
   ykflow->adjacentElems = yk_findAdjacentElems;
+  ykflow->residualSnapshotFile = yk_createSnapshotResidualFile;
   /* ykflow->aveSpatialOutput = yk_uploadStateCalcSpatialAverageOutput; */
   /* ykflow->spatialdJdU = yk_uploadStateCalcSpatialdJdU; */
   /* ykflow->multiplyByInvMass = yk_MultInvMassMatrixArray; */
@@ -39,6 +45,46 @@ void delete_Xflow(yk_PrimalSolver *ykflow){
   free(ykflow);
 
 }
+
+void yk_textBoldBorder(char *text){
+  int i;
+  int sizechar = strlen(text);
+  int spaces = (80-sizechar)/2;
+  int extra = (80-sizechar) % 2;
+  printf("+======================================="	\
+	 "=======================================+\n");
+  printf("|");
+  for (i=1; i<spaces; i++)
+    printf(" ");
+  printf("%s", text);
+  for (i=0; i<spaces+extra-1; i++)
+    printf(" ");
+  printf("|\n");
+  printf("+======================================="	\
+	 "=======================================+\n");
+}
+
+
+
+void yk_textBorder(char *text){
+  int i;
+  int sizechar = strlen(text);
+  int spaces = (80-sizechar)/2;
+  int extra = (80-sizechar) % 2;
+  printf("+---------------------------------------"	\
+	 "---------------------------------------+\n");
+  printf("|");
+  for (i=1; i<spaces; i++)
+    printf(" ");
+  printf("%s", text);
+  for (i=0; i<spaces+extra-1; i++)
+    printf(" ");
+  printf("|\n");
+  printf("+---------------------------------------"	\
+	 "---------------------------------------+\n");
+}
+
+
 
 //Also assigns the spatial elems to the xflow framework
 //X's are the targets and they go into the sample mesh part of the xflow
@@ -114,11 +160,13 @@ void yk_findAdjacentElems(yk_PrimalSolver *ykflow, Cluster *primal,
     for (j=0; j<xflow->All->Mesh->ElemGroup[grpnum].nFace[pelem];j++){
       xf_NeighborAcrossFace(xflow->All->Mesh, grpnum, pelem, j, &egR, &eR,
 			    &faceR);
-      if (eR!=-1)
+      if (eR!=-1){
 	xf_EgrpElem2Index(xflow->All->Mesh, egR, eR, &pie);
-      if (keepTrack[pie] ==0 && eR != -1){
-	keepTrack[pie] = 1;
-	count ++;
+
+	if (keepTrack[pie] ==0 && eR != -1){
+	  keepTrack[pie] = 1;
+	  count ++;
+	}
       }
     }
     xflow->All->Mesh->ElemGroup[grpnum].s_nElem++;
@@ -526,8 +574,8 @@ void yk_fomBuffer(yk_PrimalSolver *ykflow, Universe equation, Is_it *reduced, \
   int mach= reduced->paramMeshGrid[p*reduced->numParams]*10;
   int alfa = reduced->paramMeshGrid[p*reduced->numParams+1];
   int reynolds = reduced->paramMeshGrid[p*reduced->numParams+2];
-  sprintf(nameOfDir, "%s_M_%d_A_%d_Re_%d", equation.nameEqn, mach, \
-	  alfa, reynolds);
+  sprintf(nameOfDir, "%s/%s_M_%d_A_%d_Re_%d", ykflow->path, equation.nameEqn,
+	  mach,  alfa, reynolds);
 }
 
 
@@ -737,6 +785,7 @@ void yk_xflow_totalResidual(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   xf_Call(xf_GetParam_MultiStep(TimeScheme, &nStep, &nStepR, &a, &b));
 
   //Allocate the state for each time that is needed for the discretization
+
   xf_Call(xf_Alloc( (void **) &UGi, nStep+1, sizeof(xf_VectorGroup *)));
   for (i=0; i<=nStep; i++){
     sprintf(title, "state_%d", i);
@@ -963,18 +1012,11 @@ void yk_Init(yk_PrimalSolver *ykflow, Multiverse *multiquation, Cluster *fom,
   initIs_it(reduced);
   read_input(argcIn, argvIn, multiquation->equation, NULL, NULL, reduced);
 
-
-  printf("HAHAHAHAHHA\n");
   printf("%g %g %g\n", reduced->params[0],reduced->params[1], reduced->params[2]);
-  getchar();
   sprintf(createParam,"python3 createParam.py %g %g %g",
 	  reduced->params[0], reduced->params[1], reduced->params[2]);
-  printf("with u %s\n",createParam);
-  getchar();
 
   system(createParam);
-  printf("did it work\n");
-  getchar();
   //---------------------------------------------------------------------------
   // Reduced mutliquation equation parameters
   //---------------------------------------------------------------------------
@@ -1218,9 +1260,11 @@ int yk_forwardSimulation(yk_Xflow *xflow, Cluster *fom){
   xf_TimeHistData *TimeHistData=xflow->TimeHistData;
   char fName[xf_MAXSTRLEN];
   xf_All *sampleAll;
+  char TimeHistFile[xf_MAXSTRLEN];
   //---------------------------------------------------------------------------
   // Find all the job and equation related information
   //---------------------------------------------------------------------------
+  yk_textBoldBorder("Run Forward Order Model");
   //---------------------------------------------------------------------------
   // Burn Time to find the new initial conditions
   //---------------------------------------------------------------------------
@@ -1234,24 +1278,31 @@ int yk_forwardSimulation(yk_Xflow *xflow, Cluster *fom){
   xf_Call(xf_GetKeyValue(xflow->All->Param->KeyValue, "LogOutput", LogOutput));
   xf_Call(xf_FindOrCreatePrimalState(xflow->All, DoRestart, NULL, &xflow->UG));
   /* // Create the Time History */
-  xf_Call(xf_CreateUniformTimeHistData(xflow->All, LogOutput, &xflow->TimeHistData));
-  /* sprintf(fName, "%s_TimeHist.txt", SavePrefix); */
-  /* xf_Call(xf_ReadTimeHistData(fName, LogOutput, &xflow->TimeHistData)); */
   xf_Call(xf_SetKeyValueInt(xflow->All->Param->KeyValue,
                             "UnsteadyWriteInterval", 1));
-  /* // Run the coarse primal solution */
-  xf_Call(xf_ApplyTimeScheme(xflow->All, SavePrefix ,xfe_False, &xflow->UG,
-                             xflow->TimeHistData));
-  xf_Call(xf_SetKeyValueReal(xflow->All->Param->KeyValue, "Time", Time0));
+
+  if (fom->self->runFom == 1){
+    xf_Call(xf_CreateUniformTimeHistData(xflow->All, LogOutput,
+					 &xflow->TimeHistData));
+    xf_Call(xf_ApplyTimeScheme(xflow->All, SavePrefix ,xfe_False, &xflow->UG,
+			       xflow->TimeHistData));
+    xf_Call(xf_SetKeyValueReal(xflow->All->Param->KeyValue, "Time", Time0));
+    for (i=0; i<fom->self->time.count+1; i++){
+      sprintf(OutputFile, "%s_U%d.xfa", SavePrefix, i);
+      xf_Call(xf_WriteAllBinary(xflow->All, OutputFile));
+    }
+    yk_xfData2Dat(fom->self, xflow->UG, SavePrefix);
+
+  }else if (fom->self->runFom == 0){
+    sprintf(TimeHistFile, "naca_TimeHist.txt");
+    ierr = xf_Error(xf_ReadTimeHistData(TimeHistFile, NULL,
+                                        &xflow->TimeHistData));
+
+  }
 
   //---------------------------------------------------------------------------
   // Convert the fi;es fromd ata to ykflow form and create xfa txt files
   //---------------------------------------------------------------------------
-  for (i=0; i<fom->self->time.count+1; i++){
-    sprintf(OutputFile, "%s_U%d.xfa", SavePrefix, i);
-    xf_Call(xf_WriteAllBinary(xflow->All, OutputFile));
-  }
-  yk_xfData2Dat(fom->self, xflow->UG, SavePrefix);
 
   return ierr;
 }
@@ -1296,6 +1347,146 @@ void yk_print2xflowTxt(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   yk_xfData2Dat(sol, xflow->UG, temp);
 }
 
+
+void yk_createSnapshotResidualFile(yk_PrimalSolver *ykflow,
+				    Multiverse *multiquation, Cluster *fom,
+				    Cluster *rom, Is_it *reduced){
+  //Iterate through the number of parameters
+  //For this 2D case lets make the paramset for residuals the same set
+  // used for the states for POD snapshot at the beginning
+  int ierr;
+  int p;
+  FILE *fin=NULL;
+  int win_i = fom->self->time.window_i;
+  char file_out[xf_MAXSTRLEN];
+  FILE *fout=NULL;
+  int ch;
+  char fomBuffer[xf_MAXSTRLEN];
+  char cwd[1024];
+  char paramCalc[xf_MAXSTRLEN];
+  char file_in[xf_MAXSTRLEN];
+  char outputFile[xf_MAXSTRLEN];
+  enum xfe_Bool DoRestart;
+  char TimeHistFile[xf_MAXSTRLEN];
+  char jobFile[xf_MAXSTRLEN];
+  yk_PrimalSolver *ykflow_p;
+  yk_Xflow *xflow_p;  //polymorphism
+  yk_Xflow *xflow = (yk_Xflow *) ykflow->solver;  //polymorphism
+  Cluster *rom_p;
+  struct stat sb = {0};
+  struct stat st = {0};
+  //---------------------------------------------------------------------------
+  // Prepare the ultimate Residual snapshot file
+  //---------------------------------------------------------------------------
+  // Create the ultimate residual snapshot file and open it to write into
+  sprintf(file_out, "%s/residualSnapshot_%d.dat", ykflow->path, win_i);
+  fout = fopen(file_out, "w+");
+  if (!fout) {
+    perror("fopen output file");
+    exit(EXIT_FAILURE);
+  }
+  //---------------------------------------------------------------------------
+  //Iterate through all the oarams used to calcualte the residuals at
+  //---------------------------------------------------------------------------
+  //name for the Time History Files in the individual data directories
+  sprintf(TimeHistFile, "naca_TimeHist.txt");
+  //Extract the jobFile name to be assigned for residual creation
+  xf_Call(xf_GetKeyValue(xflow->KeyValueArg, "job", jobFile));
+  //Iterate through the parameter space
+  for (p = 0; p< reduced->numParamSet; p++){
+    //Create new xflow and ykflow instances
+    ykflow_p = new_Xflow();
+    xflow_p = (yk_Xflow *) ykflow_p->solver;
+    //Create temporary cluster
+    rom_p = (Cluster *) malloc (sizeof(Cluster));
+    //Retrieve the data set name and enter that directory
+    yk_fomBuffer(ykflow, multiquation->equation, reduced, p, fomBuffer);
+    printf("Get Data from --->>>> %s\n", fomBuffer);
+    if (stat(fomBuffer, &sb) == 0 && S_ISDIR(sb.st_mode)) {
+      chdir(fomBuffer);
+      getcwd(cwd, sizeof(cwd));
+    } else {
+      perror(fomBuffer);
+      exit(0);
+    }
+    //-------------------------------------------------------------------------
+    //Initialize the xflow data struc
+    //-------------------------------------------------------------------------
+    xf_Call(xf_CreateKeyValue(&xflow_p->KeyValueArg));
+    ierr = xf_AddKeyValue(xflow_p->KeyValueArg, "job", jobFile, xfe_True);
+    strcpy(ykflow_p->path, ykflow->path);
+    yk_initializeXflow(ykflow_p);
+    xf_Call(xf_ReadTimeHistData(TimeHistFile, NULL,
+					&xflow_p->TimeHistData));
+    //-------------------------------------------------------------------------
+    // Run through parameter space and calcualte ROM for each parameter set
+    //-------------------------------------------------------------------------
+    //Create directory to save data for each parameter space value
+    sprintf(paramCalc, "%s/residualSnapshot_param_%d", ykflow->path, p);
+    if (stat(paramCalc, &st) == -1)
+      mkdir(paramCalc, 0700);
+    //Copy over initial conditions from the given data to new folders
+
+    if (fom->self->time.window_i == 0){
+      sprintf(outputFile, "cp %s_%d.dat %s", fom->self->id, 0,  paramCalc);
+      system(outputFile);
+    }
+    chdir(paramCalc);
+    //Implement gauss newton solve to find the reduced states
+    yk_runReducedOrderModel_ST(ykflow_p, multiquation, fom, rom_p, reduced);
+    //Open the residual file GN solver wrote and copy to the master res file
+    sprintf(file_in, "residualSnapshot_%d.dat", win_i);
+    fin = fopen(file_in, "r");
+    if (!fin) {
+      perror("fopen input file");
+      fprintf(stderr, "Problem file: %s\n", file_in);
+      exit(EXIT_FAILURE);
+    }
+    while ((ch = fgetc(fin)) != EOF)
+      fputc(ch, fout);
+    fclose(fin);
+    //-------------------------------------------------------------------------
+    // Destroy everything for the particualr parameter set p
+    //-------------------------------------------------------------------------
+    free(rom_p->self->index);
+    destroySystem(multiquation->equationReduced, rom_p->reduced);
+    destroySystem(multiquation->equation, rom_p->self);
+    free(rom_p->reduced);
+    free(rom_p->self);
+    xf_Call(xf_DestroyTimeHistData(xflow_p->TimeHistData));
+    xf_Call(xf_DestroyKeyValue(xflow_p->KeyValueArg));
+    xf_CloseEqnSetLibrary(&xflow_p->All);
+    xf_Call(xf_DestroyAll(xflow_p->All));
+    delete_Xflow(ykflow_p);
+    free(rom_p);
+  }
+  //Close the ultimate residual file, because it is done!
+  fclose(fout);
+  //Back to the original working directory
+  chdir(ykflow->path);
+}
+
+void yk_initializeXflow(yk_PrimalSolver *ykflow){
+  int ierr;
+  yk_Xflow *xflow  = (yk_Xflow *) ykflow->solver;
+  enum xfe_Bool DoRestart;
+  char jobFile[xf_MAXSTRLEN];
+   //Each Element is surrounded by three other triangles so dRdU has 4 non 0 val
+  ykflow->numElemCol = 4;
+  //Parse through the input file
+  xf_Call(xf_GetKeyValue(xflow->KeyValueArg, "job", jobFile));
+
+  //Read All from job and load and register the equations et
+  xf_Call(xf_ReadAllFromJobFile(jobFile, xfe_True, &xflow->All));
+  xf_Call(xf_LoadEqnSetLibrary(xflow->All->EqnSet->EqnSetLibrary)); //Equation
+  xf_Call(xf_EqnSetRegister(xflow->All->EqnSet));
+  //Make sure we have a primal state //initial condition is part of it
+  xf_Call(xf_GetKeyValueBool(xflow->All->Param->KeyValue, "Restart", &DoRestart));
+  xf_Call(xf_FindOrCreatePrimalState(xflow->All, DoRestart, NULL, &xflow->UG));
+  //Need to convert the xflow parameters into ykflow parameters
+
+}
+
 void yk_initializeYkflow(yk_PrimalSolver *ykflow, Multiverse *multiquation,
 			 Cluster *fom, Is_it *reduced){
   //------------------------------------//-------------------------------------
@@ -1314,12 +1505,14 @@ void yk_initializeYkflow(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   char inputFile[xf_MAXSTRLEN];
   char newFace[xf_MAXSTRLEN];
   char createParam[xf_MAXSTRLEN];
+  char cwd[xf_MAXSTRLEN];
   char *argvIn[] = {"0", "9", NULL};
   yk_Xflow *xflow  = (yk_Xflow *) ykflow->solver;
   xf_All *All = xflow->All;
+  const char* s = getenv("YKFLOWRUNPATH");
 
   //Each Element is surrounded by three other triangles so dRdU has 4 non 0 val
-  ykflow->numElemCol = 4;
+  /* ykflow->numElemCol = 4; */
   //---------------------------------------------------------------------------
   // Initiaize the forward order model to
   //---------------------------------------------------------------------------
@@ -1327,31 +1520,36 @@ void yk_initializeYkflow(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   //---------------------------------------------------------------------------
   // Read through the YKFLOW input file
   //---------------------------------------------------------------------------
+
   xf_Call(xf_GetKeyValue(xflow->KeyValueArg, "input", inputFile));
   sprintf(newFace, "%s.inp", inputFile);
+
   argvIn[1] = newFace;
   strcpy(multiquation->equation.nameEqn, inputFile);
   initIs_it(reduced);
   read_input(argcIn, argvIn, multiquation->equation, NULL, NULL, reduced);
   sprintf(createParam,"python3 createParam.py %g %g %g",
           reduced->params[0], reduced->params[1], reduced->params[2]);
-
+  fom->self->runFom = reduced->runFom;
   system(createParam);
-  printf("chocolate\n");
+
+  printf("PATH :%s\n",(s!=NULL)? s : "getenv returned NULL");
+  strcpy(ykflow->path, s);
   //---------------------------------------------------------------------------
   // Read through the XFLOW input file
   //---------------------------------------------------------------------------
+  yk_initializeXflow(ykflow);
   //Parse through the input file
-  xf_Call(xf_GetKeyValue(xflow->KeyValueArg, "job", jobFile));
+  /* xf_Call(xf_GetKeyValue(xflow->KeyValueArg, "job", jobFile)); */
 
-  //Read All from job and load and register the equations et
-  xf_Call(xf_ReadAllFromJobFile(jobFile, xfe_True, &xflow->All));
-  xf_Call(xf_LoadEqnSetLibrary(xflow->All->EqnSet->EqnSetLibrary)); //Equation
-  xf_Call(xf_EqnSetRegister(xflow->All->EqnSet));
-  //Make sure we have a primal state //initial condition is part of it
-  xf_Call(xf_GetKeyValueBool(xflow->All->Param->KeyValue, "Restart", &DoRestart));
-  xf_Call(xf_FindOrCreatePrimalState(xflow->All, DoRestart, NULL, &xflow->UG));
-  //Need to convert the xflow parameters into ykflow parameters
+  /* //Read All from job and load and register the equations et */
+  /* xf_Call(xf_ReadAllFromJobFile(jobFile, xfe_True, &xflow->All)); */
+  /* xf_Call(xf_LoadEqnSetLibrary(xflow->All->EqnSet->EqnSetLibrary)); //Equation */
+  /* xf_Call(xf_EqnSetRegister(xflow->All->EqnSet)); */
+  /* //Make sure we have a primal state //initial condition is part of it */
+  /* xf_Call(xf_GetKeyValueBool(xflow->All->Param->KeyValue, "Restart", &DoRestart)); */
+  /* xf_Call(xf_FindOrCreatePrimalState(xflow->All, DoRestart, NULL, &xflow->UG)); */
+  /* //Need to convert the xflow parameters into ykflow parameters */
   //---------------------------------------------------------------------------
   // Reduced mutliquation equation parameters
   //---------------------------------------------------------------------------
@@ -1411,6 +1609,7 @@ void yk_initializeYkflow(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   definelocalMeshGrid(0, reduced, testparam,  &count);
   free(testparam);
 }
+
 
 void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
                          Cluster *fom, Cluster *rom, Cluster *hrom,
@@ -1486,37 +1685,31 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   /* //--------------------------------------------------------------------------- */
   /* // Space-Time Reduced-Order Modeling */
   /* //--------------------------------------------------------------------------- */
-  printf("--------------------------------------------------------------------------------\n");
-  printf("|                   Windowed Space-Time Model Order Reduction                  |\n");
-  printf("--------------------------------------------------------------------------------\n");
+  yk_textBoldBorder("ykflow: Windowed Space-Time Model Order Reduction");
+
   /* /\* With windowed space-time, we treat each window as its own entity. Each window will solve a residual minimization problem. Instead of doing what I did in the pymortestbed code, I'm going to keep the routine in the original createROM and perform script as much as possible, the same. Treat it more like a wrapper code at the moment. *\/ */
+  char windowString[xf_MAXSTRLEN];
   for (i=0; i<reduced->nTimeSegs; i++){ //Number of time windows
     fom->self->time.window_i = i;
-
-
-    printf("        --------------------------------------------------------------\n");
-    printf("--------|                       W i n d o w  %d                        |------\n", i);
-    printf("        --------------------------------------------------------------\n");
+    sprintf(windowString, "W i n d o w %d", i);
+    yk_textBorder(windowString);
     //-------------------------------------------------------------------------
     // Reduced Order Modeling
     //-------------------------------------------------------------------------
-    printf("        --------------------------------------------------------------\n");
-    printf("        |          Windowed ST Least-Squares Petrov-Galerkin          |\n");;
-    printf("        --------------------------------------------------------------\n");
+    yk_textBoldBorder("Windowed ST Least-Squares Petrov-Galerkin");
+    yk_textBorder("1. Create the Reduced Order Model");
     yk_createReducedOrderModel_ST(ykflow, multiquation, fom, reduced);
+    yk_textBorder("2. Find the Reduced Order Model");
     yk_runReducedOrderModel_ST(ykflow, multiquation, fom, rom, reduced);
 
     //-------------------------------------------------------------------------
     // Hyper-Reduced Order Modeling
     //-------------------------------------------------------------------------
-    printf("        --------------------------------------------------------------\n");
-    printf("        |          Windowed ST Gauss Newton w/ Approx Tensors          |\n");
-    printf("        --------------------------------------------------------------\n");
-
-    yk_createHyperReducedOrderModel_ST(ykflow, multiquation, fom, hrom,reduced);
+    yk_textBoldBorder("Windowed ST Gauss Newton w/ Approx Tensors");
+    yk_textBorder("1. Create the hyper reduced order model");
+    yk_createHyperReducedOrderModel_ST(ykflow, multiquation, fom, rom,reduced);
+    yk_textBorder("2. Find the hyper reduced order model");
     yk_runHyperReducedOrderModel_ST(ykflow, multiquation, fom, hrom, reduced);
-
-
     //-------------------------------------------------------------------------
     // Post process here
     //-------------------------------------------------------------------------
@@ -1534,10 +1727,9 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
       }
     }
 
+    yk_textBorder("Postprocess Data");
     yk_print2xflowTxt(ykflow, multiquation, rom->self);
     yk_print2xflowTxt(ykflow, multiquation, hrom->stateFull);
-
-
     //-------------------------------------------------------------------------
     // Destroy everything
     //-------------------------------------------------------------------------
@@ -1547,17 +1739,17 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
     for (j=0; j<xflow->All->Mesh->nElemGroup; j++)
       xf_Release((void **) xflow->All->Mesh->ElemGroup[j].sElem);
 
-}
+  }
   MatAssemblyBegin(fomMat, MAT_FINAL_ASSEMBLY);
   MatAssemblyEnd(fomMat, MAT_FINAL_ASSEMBLY);
 
   MatAssemblyBegin(romMat, MAT_FINAL_ASSEMBLY);
   MatAssemblyEnd(romMat, MAT_FINAL_ASSEMBLY);
 
-MatAssemblyBegin(hromMat, MAT_FINAL_ASSEMBLY);
+  MatAssemblyBegin(hromMat, MAT_FINAL_ASSEMBLY);
   MatAssemblyEnd(hromMat, MAT_FINAL_ASSEMBLY);
 
-MatAXPY(romMat, -1, fomMat, SAME_NONZERO_PATTERN);
+  MatAXPY(romMat, -1, fomMat, SAME_NONZERO_PATTERN);
   MatAXPY(hromMat, -1, fomMat, SAME_NONZERO_PATTERN);
 
   MatNorm(romMat, NORM_FROBENIUS, &normROM);
@@ -1565,6 +1757,7 @@ MatAXPY(romMat, -1, fomMat, SAME_NONZERO_PATTERN);
 
   MatNorm(fomMat, NORM_FROBENIUS, &normFOM);
 
+  yk_textBoldBorder("Numerical Results");
   printf("Mean Square Error for ROM: %0.16e\n", normROM/normFOM);
   printf("Mean Square Error for HROM: %0.16e\n", normHROM/normFOM);
 
@@ -1606,6 +1799,7 @@ int main(int argc, char** argv) {
   // initialize key-value
   xf_Call(xf_CreateKeyValue(&xflow->KeyValueArg));
   /* // parse arguments */
+
   ierr = xf_ParseArg(ArgIn, argc, argv, xflow->KeyValueArg);
   if (ierr == xf_FORCE_QUIT) return xf_OK;
   if (ierr != xf_OK) return xf_Error(ierr);

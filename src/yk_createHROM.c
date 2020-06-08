@@ -143,7 +143,7 @@ void yk_runReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   snapshotCount = primal->self->time.count;
   //Total number of temporal sanpshots in each time window
   snapshotCount_win = snapshotCount/reduced->nTimeSegs;
-  //Total number of temporal snapshots in each sub window
+ //Total number of temporal snapshots in each sub window
   strcpy(primalApprox->clusterId, primal->clusterId);
   //Set the number of states for the reduced solutions
   multiquation->equationReduced.numStates = nBasis;
@@ -204,7 +204,6 @@ void yk_runReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   //---------------------------------------------------------------------------
   createInitialConditions_ST(ykflow, multiquation, primal,
 			     &reduced->ST_rOBState, &init, reduced);
-
   vec2Array(*_eqnRcd,primalApprox->reduced,primalApprox->reduced->space, init);
   ks_printSolution(*_eqnRcd, primalApprox->reduced, primal->self->time.window_i);
   //---------------------------------------------------------------------------
@@ -311,10 +310,14 @@ void yk_createHyperReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   //---------------------------------------------------------------------------
   // Initialize everything
   //---------------------------------------------------------------------------
+  //---------------------------------------------------------------------------
+  // Find the residual basis matrix
+  //---------------------------------------------------------------------------
+  ykflow->residualSnapshotFile(ykflow, multiquation, primal, primalApprox,
+			       reduced);
+
   sprintf(residualSnapshots, "%s_%d.dat", "residualSnapshot",
           primal->self->time.window_i);
-
-
 
   for (i=0; i<systemSize; i++) {rowIndex[i] = i;}
 
@@ -338,9 +341,8 @@ void yk_createHyperReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   primal->self->time.t_0 = primal->self->time.window_i*snapshotCount_win*dt;
   primal->self->time.t_f=(primal->self->time.window_i+1)*snapshotCount_win*dt;
   //---------------------------------------------------------------------------
-  // Find the residual basis matrix
+  //Readm the snapshot residualmatrix file for manipulation
   //---------------------------------------------------------------------------
-
   sRes_mu = ks_readMatrix(residualSnapshots, systemSize, snapshotCount_win,
 			  &rSnapshot, &RJLines, reduced);
   yk_properOrthogonalDecompose(&rSnapshot, systemSize, rowIndex,
@@ -1095,6 +1097,7 @@ void createInitialConditions_ST(yk_PrimalSolver *ykflow,
   //------------------------------------//-------------------------------------
   int mach = round(reduced->params[0]*10);
   int alfa = round(reduced->params[1]);
+  /* int alfa = 9; */
   int reynolds = round(reduced->params[2]);
   int timeNode0 = primal->self->time.t_0/primal->self->time.dt;
   char nameOfDir[1000];  //Name of the directory to go into , just rounding
@@ -1117,9 +1120,6 @@ void createInitialConditions_ST(yk_PrimalSolver *ykflow,
  //---------------------------------------------------------------------------
   // initialization
   //---------------------------------------------------------------------------
-  /* strcpy(tempS, primal->self->id); */
-  /* strcpy(primal->self->id, primal->self->jobName); */
-
 
   MatGetSize(*st_rOBTemp, &row, &nBasis);
 
@@ -1136,13 +1136,14 @@ void createInitialConditions_ST(yk_PrimalSolver *ykflow,
   // Implementation
   //---------------------------------------------------------------------------
   //Find the file name of the folder we want to go into and set it to nameOfDir
-  sprintf(nameOfDir, "%s_M_%d_A_%d_Re_%d", multiquation->equation.nameEqn,
-	  mach, alfa, reynolds);
-  printf("%s\n", nameOfDir);
+
+  sprintf(nameOfDir, "%s/%s_M_%d_A_%d_Re_%d", ykflow->path,
+	  multiquation->equation.nameEqn, mach, alfa, reynolds);
+  getcwd(cwd, sizeof(cwd));
+
   //Go into the folder now
   if (stat(nameOfDir, &sb) == 0 && S_ISDIR(sb.st_mode)) {
     chdir(nameOfDir);
-    getcwd(cwd, sizeof(cwd));
   } else {
     perror(nameOfDir);
     exit(0);
@@ -1179,7 +1180,7 @@ void createInitialConditions_ST(yk_PrimalSolver *ykflow,
   moorePenrosePseudoInv(*st_rOBTemp, row, nBasis, &A);
 
   MatMult(A, vecsnapshot, *estimatedinitST);
-  chdir("../");
+  chdir(cwd);
   /* strcpy(primal->self->id, tempS); */
   VecDestroy(&vecsnapshot);
   MatDestroy(&A);

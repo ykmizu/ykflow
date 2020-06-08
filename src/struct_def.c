@@ -62,6 +62,7 @@ void initIs_it(Is_it *reduced){
   reduced->nBasisFuncsRJ = 0;
   reduced->nSnapshotsRJ = 0;
   reduced->outerStart = 0;
+  reduced->runFom = 1;
 }
 
 void initUtype(Galaxy *U){

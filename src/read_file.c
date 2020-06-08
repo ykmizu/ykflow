@@ -134,6 +134,10 @@ void read_input(int argc, char *argv[], Universe eqn, Galaxy* u_fine,
         }
         if (strcmp(lines, "timeMethod") == 0){
           u_coarse->time_method = atoi(lines_temp);
+	}else if (strcmp(lines, "runFom") == 0){
+	  printf("readfile c\n");
+	  reduced->runFom = atoi(lines_temp);
+	  printf("LALALLALAALLALALALA %d\n", reduced->runFom);
         }else if (strcmp(lines, "burnTimeLength") == 0){
           u_coarse->burnT_f = atof(lines_temp);
         }else if (strcmp(lines, "dt") == 0){

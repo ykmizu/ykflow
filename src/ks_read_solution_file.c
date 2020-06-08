@@ -25,19 +25,27 @@ void ks_printSolution(Universe eqn, Galaxy* U, int node){
   int i, j;             //initialization for iteration
   FILE* solution_file;
   char outputFile[1000];
+  char cwd[1000];
   //---------------------------------------------------------------------------
   // Implementation
   //---------------------------------------------------------------------------
   sprintf(outputFile, "%s_%d.dat", U->id, node);
+  /* printf("print %s\n", outputFile); */
+  /* if (getcwd(cwd, sizeof(cwd)) != NULL) { */
+  /*   printf("important one: Current working dir: %s\n", cwd); */
+  /* } else { */
+  /*   perror("getcwd() error"); */
+  /*   return 1; */
+  /* } */
   solution_file = fopen(outputFile, "w+");
   if (solution_file == NULL){
     perror("Error");
     exit(EXIT_FAILURE);
   }
   for (i=0; i<U->space.node.count; i++){
-    fprintf(solution_file, "%0.16f", U->solution[0].array[i]);
+    fprintf(solution_file, "%0.15E", U->solution[0].array[i]);
     for (j=1; j<eqn.numStates; j++)
-      fprintf(solution_file, " %0.16f", U->solution[j].array[i]);
+      fprintf(solution_file, " %0.15E", U->solution[j].array[i]);
     fprintf(solution_file, "\n");
   }
   fclose(solution_file);
@@ -53,7 +61,7 @@ void ks_printReducedSolution(Universe eqn, Galaxy *U, int node){
   sprintf(outputFile, "%s_%d.dat", U->id, node);
   solutionFile = fopen(outputFile, "w+");
   for (i=0; i<U->space.node.count; i++)
-    fprintf(solutionFile, "0 %0.16f\n", U->solution->array[i]);
+    fprintf(solutionFile, "0 %0.16e\n", U->solution->array[i]);
   fclose(solutionFile);
 }
 
@@ -74,10 +82,19 @@ void ks_readSolution(Universe eqn, Galaxy* U, int node){
   int count = 0;
   char *current_line;
   char *lines = NULL;
+  char cwd[1000];
   char *c_lines = NULL;
   int length;
   U->time.node = node;
   sprintf(outputFile, "%s_%d.dat", U->id, node);
+  /* printf("%s\n", outputFile); */
+  /* if (getcwd(cwd, sizeof(cwd)) != NULL) { */
+  /*   printf("important one: Current working dir: %s\n", cwd); */
+  /* } else { */
+  /*   perror("getcwd() error"); */
+  /*   return 1; */
+  /* } */
+
   solutionFile = fopen(outputFile, "r");
   if (solutionFile == NULL){
     perror("Error");
