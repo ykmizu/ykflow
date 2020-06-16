@@ -42,6 +42,8 @@ void initArray2D(Array2D *a, int m, int n){
 }
 
 void initIs_it(Is_it *reduced){
+  reduced->aveR_t = 0;
+  reduced->aveH_t = 0;
   reduced->actualJbar = 0;
   reduced->delJ_psi = 0;
   reduced->delJ_dpsi = 0;
@@ -63,6 +65,9 @@ void initIs_it(Is_it *reduced){
   reduced->nSnapshotsRJ = 0;
   reduced->outerStart = 0;
   reduced->runFom = 1;
+  reduced->runFomOnly = 0;
+  reduced->final_nBasis_t = NULL;
+  reduced->final_Res_nBasis_t = NULL;
 }
 
 void initUtype(Galaxy *U){

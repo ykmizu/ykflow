@@ -93,6 +93,8 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   VecSetSizes(p, basis, basis);
   VecSetType(p, VECSEQ);
 
+  printf("%d\n", size_Xs);
+  printf("guass newton\n");
   VecCreate(PETSC_COMM_SELF, &residualTemp);
   VecSetSizes(residualTemp, size_Xs, size_Xs);
   VecSetType(residualTemp, VECSEQ);
@@ -206,7 +208,8 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
       //Calculate the Residual and the Jacobian here
       //-----------------------------------------------------------------------
       primalApprox->self->time.node = i;
-      ykflow->Residual(ykflow, multiquation, primalApprox, residualTemp,
+      VecZeroEntries(residualTemp);
+      ykflow->Residual(ykflow, multiquation, primalApprox->self, residualTemp,
       		       dRdUTemp, reduced, innertimesolver);
       VecNorm(residualTemp, NORM_2, &val);
       //-----------------------------------------------------------------------

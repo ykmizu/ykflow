@@ -192,6 +192,23 @@ typedef struct{
   PetscInt w_i; //Window number ID
   PerWindow **win_i;
   Mat Z_Os;
+  int nSims;
+  //results
+  double *r_t;
+  double *h_t;
+  double relnormROM;
+  double relnormHROM;
+  double aveR_t;
+  double aveH_t;
+  double resNormROM;
+  double resNormHROM;
+  PetscInt *final_nBasis_s;
+  PetscInt *final_nBasis_t;
+  PetscInt *final_nBasis_st;
+  PetscInt *final_Res_nBasis_s;
+  PetscInt *final_Res_nBasis_t;
+  PetscInt *final_Res_nBasis_st;
+  int runFomOnly;
 }Is_it;
 
 
@@ -207,6 +224,7 @@ typedef struct{
   Galaxy *state;
   Galaxy *stateFull; //full state when found from rOBState
   Galaxy *adjointFull;
+  double cpuTime;
 }Cluster;
 
 typedef struct {

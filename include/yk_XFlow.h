@@ -80,7 +80,7 @@ void yk_fomBuffer(yk_PrimalSolver *ykflow, Universe equation, Is_it *reduced, in
                   char *nameOfDir);
 
 void yk_xflow_totalResidual(yk_PrimalSolver *ykflow, Multiverse *multiquation,
-			    Cluster *primal, Vec residual, Mat Jacobian,
+			    Galaxy *state, Vec residual, Mat Jacobian,
 			    Is_it *reduced, int timeSolveNum);
 
 void yk_xflow_function(yk_PrimalSolver *ykflow, Multiverse *multiquation,

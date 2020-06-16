@@ -46,7 +46,7 @@ typedef void (*ptrFunction)(yk_PrimalSolver *, Multiverse *, Cluster *, Vec,
 			    Is_it *, int);
 typedef void (*ptrdFunctiondu)(yk_PrimalSolver *, Multiverse *, Cluster *, Mat,
 			       Is_it *,int);
-typedef void (*ptrResidual)(yk_PrimalSolver*, Multiverse *, Cluster*, Vec,
+typedef void (*ptrResidual)(yk_PrimalSolver*, Multiverse *, Galaxy*, Vec,
 			    Mat, Is_it *,int);
 typedef void (*ptrFomName)(yk_PrimalSolver *, Universe, Is_it *, int, char *);
 

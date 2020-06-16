@@ -9,7 +9,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
-
+#include <time.h>
+#include "/gpfs1/yshimiz/libxlsxwriter/include/xlsxwriter.h"
 
 //-----------------------------------------------------------------------------
 // Calls the xflow solver. ykflow solver inherits the xflow specific functions
@@ -176,6 +177,7 @@ void yk_findAdjacentElems(yk_PrimalSolver *ykflow, Cluster *primal,
 
   //Make the mshOs, the number of columns in the jacobian matrix
   *mshOs = (PetscInt *) malloc (count*sizeof(PetscInt));
+
   reduced->reducedMesh_Os.i_ElemCom = (int *) malloc (totElem*sizeof(int));
   initArrayInt(&reduced->reducedMesh_Os.elem, count);
   initArrayInt(&reduced->reducedMesh_Os.node, numBasis*count);
@@ -742,7 +744,7 @@ int yk_getOffDiagonalJacobiansGroup(yk_PrimalSolver *ykflow, Galaxy *primal,
 
 
 void yk_xflow_totalResidual(yk_PrimalSolver *ykflow, Multiverse *multiquation,
-			  Cluster *primal, Vec residual, Mat Jacobian,
+			  Galaxy *state, Vec residual, Mat Jacobian,
 			  Is_it *reduced, int timeSolveNum){
   int i, j, k;
   int ierr;
@@ -759,9 +761,9 @@ void yk_xflow_totalResidual(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   xf_VectorGroup *RG = NULL;
   enum xfe_TimeSchemeType TimeScheme;
   xf_JacobianMatrix *R_U;
-  int initalNode = (int)(primal->self->time.t_0/primal->self->time.dt);
-  int iTime = primal->self->time.node-initalNode-1;
-  double resTime = primal->self->time.node*primal->self->time.dt;
+  int initalNode = (int)(state->time.t_0/state->time.dt);
+  int iTime = state->time.node-initalNode-1;
+  double resTime = state->time.node*state->time.dt;
   yk_Xflow *xflow = (yk_Xflow *) ykflow->solver;
   xf_TimeHistData *TimeHistData = xflow->TimeHistData;
   xf_SolverData *SolverData=NULL;
@@ -803,20 +805,19 @@ void yk_xflow_totalResidual(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   //---------------------------------------------------------------------------
   // Place the guess for the i+1 values (To be used in the residual portion)
   //---------------------------------------------------------------------------
-  yk_array2VectorGroup(UGi[0], primal->self);
+  yk_array2VectorGroup(UGi[0], state);
 
   //---------------------------------------------------------------------------
   // Create the vector sets for the Ui+1 and Ui parks the non sptial R part
   //---------------------------------------------------------------------------
   xf_Call(xf_CreateDataSet(&DataSet));
-  ttime = primal->self->time.node;
+  ttime = state->time.node;
   for (i=1; i<=nStep; i++){
     /* printf("%d\n", ttime); */
     /* printf("gala %d\n", i); */
     /* printf("readsolution %d\n", ttime-i); */
-    ks_readSolution(multiquation->equation, primal->self,
-  		    ttime-i);
-    yk_array2VectorGroup(UGi[i], primal->self);
+    ks_readSolution(multiquation->equation, state, ttime-i);
+    yk_array2VectorGroup(UGi[i], state);
     if (i==1){
       xf_Call(xf_VectorGroupMultSet(UGi[i], a[i], xfe_Set, SG));
     }else{
@@ -841,7 +842,7 @@ void yk_xflow_totalResidual(yk_PrimalSolver *ykflow, Multiverse *multiquation,
 
   // locate Residual vector
   /* printf("time to calculate residual at %g\n", Time+primal->self->time.dt); */
-  xf_Call(xf_SetKeyValueReal(xflow->All->Param->KeyValue, "Time", Time+primal->self->time.dt));
+  xf_Call(xf_SetKeyValueReal(xflow->All->Param->KeyValue, "Time", Time+state->time.dt));
 
   //---------------------------------------------------------------------------
   // Residual calculuate
@@ -860,11 +861,11 @@ void yk_xflow_totalResidual(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   //---------------------------------------------------------------------------
   // Convert to Petsc Vec format (Residual)
   //---------------------------------------------------------------------------
-  yk_vector2VecGroup(xflow->All, RG, primal->self, residual, reduced);
+  yk_vector2VecGroup(xflow->All, RG, state, residual, reduced);
   //yk_vector2VecGroup(primalSolverObj, RG, residual, reduced);
   //Convert to Petsc Mat format (Jacobian)
   if (Jacobian != NULL)
-    yk_matrix2D2MatGroup(xflow->All, R_U, primal->self, Jacobian, reduced);
+    yk_matrix2D2MatGroup(xflow->All, R_U, state, Jacobian, reduced);
 
   //---------------------------------------------------------------------------
   // Destory everythiung
@@ -1111,6 +1112,7 @@ void yk_Init(yk_PrimalSolver *ykflow, Multiverse *multiquation, Cluster *fom,
 void definelocalMeshGrid(int paramNumber, Is_it *reduced, double *testparam,
 			 int *count){
   int i;
+
   double value =reduced->paramsL[paramNumber];
   do{
     testparam[paramNumber] = value;
@@ -1261,6 +1263,8 @@ int yk_forwardSimulation(yk_Xflow *xflow, Cluster *fom){
   char fName[xf_MAXSTRLEN];
   xf_All *sampleAll;
   char TimeHistFile[xf_MAXSTRLEN];
+  clock_t tic;
+  clock_t toc;
   //---------------------------------------------------------------------------
   // Find all the job and equation related information
   //---------------------------------------------------------------------------
@@ -1284,8 +1288,10 @@ int yk_forwardSimulation(yk_Xflow *xflow, Cluster *fom){
   if (fom->self->runFom == 1){
     xf_Call(xf_CreateUniformTimeHistData(xflow->All, LogOutput,
 					 &xflow->TimeHistData));
+    tic = clock();
     xf_Call(xf_ApplyTimeScheme(xflow->All, SavePrefix ,xfe_False, &xflow->UG,
 			       xflow->TimeHistData));
+    toc = clock();
     xf_Call(xf_SetKeyValueReal(xflow->All->Param->KeyValue, "Time", Time0));
     for (i=0; i<fom->self->time.count+1; i++){
       sprintf(OutputFile, "%s_U%d.xfa", SavePrefix, i);
@@ -1299,7 +1305,7 @@ int yk_forwardSimulation(yk_Xflow *xflow, Cluster *fom){
                                         &xflow->TimeHistData));
 
   }
-
+  fom->cpuTime = ((double)(toc-tic))/CLOCKS_PER_SEC;
   //---------------------------------------------------------------------------
   // Convert the fi;es fromd ata to ykflow form and create xfa txt files
   //---------------------------------------------------------------------------
@@ -1348,6 +1354,28 @@ void yk_print2xflowTxt(yk_PrimalSolver *ykflow, Multiverse *multiquation,
 }
 
 
+void yk_initializeXflow(yk_PrimalSolver *ykflow){
+  int ierr;
+  yk_Xflow *xflow  = (yk_Xflow *) ykflow->solver;
+  enum xfe_Bool DoRestart;
+  char jobFile[xf_MAXSTRLEN];
+   //Each Element is surrounded by three other triangles so dRdU has 4 non 0 val
+  ykflow->numElemCol = 4;
+  //Parse through the input file
+  xf_Call(xf_GetKeyValue(xflow->KeyValueArg, "job", jobFile));
+
+  //Read All from job and load and register the equations et
+  xf_Call(xf_ReadAllFromJobFile(jobFile, xfe_True, &xflow->All));
+  xf_Call(xf_LoadEqnSetLibrary(xflow->All->EqnSet->EqnSetLibrary)); //Equation
+  xf_Call(xf_EqnSetRegister(xflow->All->EqnSet));
+  //Make sure we have a primal state //initial condition is part of it
+  xf_Call(xf_GetKeyValueBool(xflow->All->Param->KeyValue, "Restart", &DoRestart));
+  xf_Call(xf_FindOrCreatePrimalState(xflow->All, DoRestart, NULL, &xflow->UG));
+  //Need to convert the xflow parameters into ykflow parameters
+
+}
+
+
 void yk_createSnapshotResidualFile(yk_PrimalSolver *ykflow,
 				    Multiverse *multiquation, Cluster *fom,
 				    Cluster *rom, Is_it *reduced){
@@ -1375,9 +1403,11 @@ void yk_createSnapshotResidualFile(yk_PrimalSolver *ykflow,
   Cluster *rom_p;
   struct stat sb = {0};
   struct stat st = {0};
+  int tempSims = reduced->nSims;
   //---------------------------------------------------------------------------
   // Prepare the ultimate Residual snapshot file
   //---------------------------------------------------------------------------
+  reduced->nSims = 1;
   // Create the ultimate residual snapshot file and open it to write into
   sprintf(file_out, "%s/residualSnapshot_%d.dat", ykflow->path, win_i);
   fout = fopen(file_out, "w+");
@@ -1392,6 +1422,7 @@ void yk_createSnapshotResidualFile(yk_PrimalSolver *ykflow,
   sprintf(TimeHistFile, "naca_TimeHist.txt");
   //Extract the jobFile name to be assigned for residual creation
   xf_Call(xf_GetKeyValue(xflow->KeyValueArg, "job", jobFile));
+
   //Iterate through the parameter space
   for (p = 0; p< reduced->numParamSet; p++){
     //Create new xflow and ykflow instances
@@ -1432,8 +1463,9 @@ void yk_createSnapshotResidualFile(yk_PrimalSolver *ykflow,
       system(outputFile);
     }
     chdir(paramCalc);
+
     //Implement gauss newton solve to find the reduced states
-    yk_runReducedOrderModel_ST(ykflow_p, multiquation, fom, rom_p, reduced);
+    yk_runReducedOrderModel_ST(ykflow_p, multiquation, fom, rom_p, NULL, reduced);
     //Open the residual file GN solver wrote and copy to the master res file
     sprintf(file_in, "residualSnapshot_%d.dat", win_i);
     fin = fopen(file_in, "r");
@@ -1460,32 +1492,13 @@ void yk_createSnapshotResidualFile(yk_PrimalSolver *ykflow,
     delete_Xflow(ykflow_p);
     free(rom_p);
   }
+  reduced->nSims = tempSims;
   //Close the ultimate residual file, because it is done!
   fclose(fout);
   //Back to the original working directory
   chdir(ykflow->path);
 }
 
-void yk_initializeXflow(yk_PrimalSolver *ykflow){
-  int ierr;
-  yk_Xflow *xflow  = (yk_Xflow *) ykflow->solver;
-  enum xfe_Bool DoRestart;
-  char jobFile[xf_MAXSTRLEN];
-   //Each Element is surrounded by three other triangles so dRdU has 4 non 0 val
-  ykflow->numElemCol = 4;
-  //Parse through the input file
-  xf_Call(xf_GetKeyValue(xflow->KeyValueArg, "job", jobFile));
-
-  //Read All from job and load and register the equations et
-  xf_Call(xf_ReadAllFromJobFile(jobFile, xfe_True, &xflow->All));
-  xf_Call(xf_LoadEqnSetLibrary(xflow->All->EqnSet->EqnSetLibrary)); //Equation
-  xf_Call(xf_EqnSetRegister(xflow->All->EqnSet));
-  //Make sure we have a primal state //initial condition is part of it
-  xf_Call(xf_GetKeyValueBool(xflow->All->Param->KeyValue, "Restart", &DoRestart));
-  xf_Call(xf_FindOrCreatePrimalState(xflow->All, DoRestart, NULL, &xflow->UG));
-  //Need to convert the xflow parameters into ykflow parameters
-
-}
 
 void yk_initializeYkflow(yk_PrimalSolver *ykflow, Multiverse *multiquation,
 			 Cluster *fom, Is_it *reduced){
@@ -1497,6 +1510,7 @@ void yk_initializeYkflow(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   int nTimeStep = 0;
   int argcIn = 2;
   int count = 0;
+  int totstbasis;
   double *testparam;
   enum xfe_Bool DoRestart;
   char jobFile[xf_MAXSTRLEN];
@@ -1535,6 +1549,20 @@ void yk_initializeYkflow(yk_PrimalSolver *ykflow, Multiverse *multiquation,
 
   printf("PATH :%s\n",(s!=NULL)? s : "getenv returned NULL");
   strcpy(ykflow->path, s);
+  totstbasis = reduced->nTimeSegs*reduced->nSubWindows;
+
+  reduced->final_nBasis_s = (PetscInt *) malloc (totstbasis*sizeof(PetscInt));
+  reduced->final_nBasis_st = (PetscInt *) malloc (totstbasis*sizeof(PetscInt));
+  reduced->final_Res_nBasis_s = (PetscInt *) malloc (reduced->nTimeSegs*
+						     sizeof(PetscInt));
+  reduced->final_Res_nBasis_st = (PetscInt *) malloc (reduced->nTimeSegs*
+						      sizeof(PetscInt));
+  reduced->r_t = (double *) malloc(reduced->nSims*sizeof(double));
+  reduced->h_t = (double *) malloc(reduced->nSims*sizeof(double));
+  for (i=0; i<reduced->nSims; i++){
+    reduced->r_t[i] = 0;
+    reduced->h_t[i] = 0;
+  }
   //---------------------------------------------------------------------------
   // Read through the XFLOW input file
   //---------------------------------------------------------------------------
@@ -1604,10 +1632,14 @@ void yk_initializeYkflow(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   createSystem(multiquation->equation, fom->self);
   //Create the parameter set
   testparam = (double *) malloc (reduced->numParams*sizeof(double));
+  printf("GATo %d\b", reduced->numParamSet);
+  getchar();
   reduced->paramMeshGrid =
     (double *) malloc (reduced->numParams*reduced->numParamSet*sizeof(double));
   definelocalMeshGrid(0, reduced, testparam,  &count);
   free(testparam);
+
+
 }
 
 
@@ -1617,44 +1649,407 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   //------------------------------------//-------------------------------------
   // Variables here                     // Comments section
   //------------------------------------//-------------------------------------
-  int i, j;                                //initialization for iteration
+  int i, j;                             //initialization for iteration
+  int j_i;
   int ierr;
-  //check this and init about this
   yk_Xflow *xflow  = (yk_Xflow *) ykflow->solver;
-  Vec fomVec, romVec, hromVec;
-  Mat fomMat, romMat, hromMat;
   PetscInt sysSize = fom->self->systemSize;
   PetscInt time =fom->self->time.count;
-  enum xfe_Bool DoRestart;
+  PetscInt nPerWindow = fom->self->time.count/reduced->nTimeSegs;
   PetscReal normROM;
   PetscReal normHROM;
   PetscReal normFOM;
-  VecCreate(PETSC_COMM_SELF, &fomVec);
-  VecSetSizes(fomVec, sysSize, sysSize);
-  VecSetType(fomVec, VECSEQ);
+  PetscReal resNormROM;
+  PetscReal resNormHROM;
+  PetscScalar val;
+  Vec fomVec, romVec, hromVec;
+  Mat fomMat, romMat, hromMat, resRomMat, resHromMat;
+  enum xfe_Bool DoRestart;
+  char windowString[xf_MAXSTRLEN];
+  //---------------------------------------------------------------------------
+  // Initialization
+  //---------------------------------------------------------------------------
+  yk_VecCreateSeq(&fomVec, sysSize);
+  yk_VecCreateSeq(&romVec, sysSize);
+  yk_VecCreateSeq(&hromVec, sysSize);
 
-  VecCreate(PETSC_COMM_SELF, &romVec);
-  VecSetSizes(romVec, sysSize, sysSize);
-  VecSetType(romVec, VECSEQ);
+  yk_MatCreateSeqDense(&fomMat, sysSize, time);
+  yk_MatCreateSeqDense(&romMat, sysSize, time);
+  yk_MatCreateSeqDense(&hromMat, sysSize, time);
+  yk_MatCreateSeqDense(&resRomMat, sysSize, time);
+  yk_MatCreateSeqDense(&resHromMat, sysSize, time);
+  //---------------------------------------------------------------------------
+  // Space-Time Reduced-Order Modeling
+  //---------------------------------------------------------------------------
+  yk_textBoldBorder("ykflow: Windowed Space-Time Model Order Reduction");
+  for (i=0; i<reduced->nTimeSegs; i++){ //Number of time windows
+    fom->self->time.window_i = i;
+    sprintf(windowString, "W i n d o w  %d", i);
+    yk_textBorder(windowString);
+    //-------------------------------------------------------------------------
+    // Reduced Order Modeling
+    //-------------------------------------------------------------------------
+    yk_textBoldBorder("Windowed ST Least-Squares Petrov-Galerkin");
+    yk_textBorder("1. Create the Reduced Order Model");
+    yk_createReducedOrderModel_ST(ykflow, multiquation, fom, reduced);
+    yk_textBorder("2. Find the Reduced Order Model");
+    yk_runReducedOrderModel_ST(ykflow, multiquation, fom, rom, reduced->r_t,
+			       reduced);
+    //-------------------------------------------------------------------------
+    // Hyper-Reduced Order Modeling
+    //-------------------------------------------------------------------------
+    yk_textBoldBorder("Windowed ST Gauss Newton w/ Approx Tensors");
+    yk_textBorder("1. Create the hyper reduced order model");
+    yk_createHyperReducedOrderModel_ST(ykflow, multiquation, fom, rom,reduced);
+    yk_textBorder("2. Find the hyper reduced order model");
+    yk_runHyperReducedOrderModel_ST(ykflow, multiquation, fom, hrom,
+				    reduced->h_t, reduced);
+    //-------------------------------------------------------------------------
+    //Post process here
+    //-------------------------------------------------------------------------
+    reduced->hrom = 0;
+    if (i==reduced->nTimeSegs-1){
+      for (j=0; j<nPerWindow; j++){
+    	j_i = i*nPerWindow+j;
+	//STATE
+    	ks_readSolution(multiquation->equation, fom->self, j_i+1);
+    	ks_readSolution(multiquation->equation, rom->self, j_i+1);
+    	ks_readSolution(multiquation->equation, hrom->stateFull, j_i+1);
+    	array2Vec(multiquation->equation, fom->self, fom->self->space, fomVec);
+    	array2Vec(multiquation->equation, rom->self, fom->self->space, romVec);
+    	array2Vec(multiquation->equation, hrom->stateFull, fom->self->space,
+		  hromVec);
+    	ks_Vec2MatCol(fomMat, sysSize, fom->self->index, j_i, fomVec,
+		      INSERT_VALUES);
+    	ks_Vec2MatCol(romMat, sysSize, fom->self->index, j_i, romVec,
+		      INSERT_VALUES);
+    	ks_Vec2MatCol(hromMat, sysSize, fom->self->index, j_i, hromVec,
+		      INSERT_VALUES);
+    	//RESIDUAL
+    	rom->self->time.node = j_i+1;
+    	hrom->stateFull->time.node = j_i+1;
+	yk_xflow_totalResidual(ykflow, multiquation, rom->self, romVec,
+			       NULL, reduced, 0);
+	yk_xflow_totalResidual(ykflow, multiquation, hrom->stateFull, hromVec,
+			       NULL, reduced, 0);
+	ks_Vec2MatCol(resRomMat, sysSize, fom->self->index, j_i, romVec,
+		      INSERT_VALUES);
+        ks_Vec2MatCol(resHromMat, sysSize, fom->self->index, j_i, hromVec,
+		      INSERT_VALUES);
+      }
+    }
+    yk_textBorder("Postprocess Data");
+    yk_print2xflowTxt(ykflow, multiquation, rom->self);
+    yk_print2xflowTxt(ykflow, multiquation, hrom->stateFull);
+    //-------------------------------------------------------------------------
+    // Destroy everything
+    //-------------------------------------------------------------------------
+    yk_destroyReducedOrderModel_ST(ykflow, multiquation, fom, rom, reduced);
+    yk_destroyHyperReducedOrderModel_ST(ykflow, multiquation,fom,hrom,reduced);
+    for (j=0; j<xflow->All->Mesh->nElemGroup; j++)
+      xf_Release((void **) xflow->All->Mesh->ElemGroup[j].sElem);
+  }
+  MatAssemblyBegin(fomMat, MAT_FINAL_ASSEMBLY);
+  MatAssemblyEnd(fomMat, MAT_FINAL_ASSEMBLY);
 
-  VecCreate(PETSC_COMM_SELF, &hromVec);
-  VecSetSizes(hromVec, sysSize, sysSize);
-  VecSetType(hromVec, VECSEQ);
+  MatAssemblyBegin(romMat, MAT_FINAL_ASSEMBLY);
+  MatAssemblyEnd(romMat, MAT_FINAL_ASSEMBLY);
 
-  MatCreate(PETSC_COMM_SELF, &fomMat);
-  MatSetSizes(fomMat, sysSize, time, sysSize, time);
-  MatSetType(fomMat, MATSEQDENSE);
-  MatSetUp(fomMat);
+  MatAssemblyBegin(hromMat, MAT_FINAL_ASSEMBLY);
+  MatAssemblyEnd(hromMat, MAT_FINAL_ASSEMBLY);
 
-  MatCreate(PETSC_COMM_SELF, &romMat);
-  MatSetSizes(romMat, sysSize, time, sysSize, time);
-  MatSetType(romMat, MATSEQDENSE);
-  MatSetUp(romMat);
+  MatAssemblyBegin(resRomMat, MAT_FINAL_ASSEMBLY);
+  MatAssemblyEnd(resRomMat, MAT_FINAL_ASSEMBLY);
 
-  MatCreate(PETSC_COMM_SELF, &hromMat);
-  MatSetSizes(hromMat, sysSize, time, sysSize, time);
-  MatSetType(hromMat, MATSEQDENSE);
-  MatSetUp(hromMat);
+  MatAssemblyBegin(resHromMat, MAT_FINAL_ASSEMBLY);
+  MatAssemblyEnd(resHromMat, MAT_FINAL_ASSEMBLY);
+
+  MatAXPY(romMat, -1, fomMat, SAME_NONZERO_PATTERN);
+  MatAXPY(hromMat, -1, fomMat, SAME_NONZERO_PATTERN);
+
+  MatNorm(fomMat, NORM_FROBENIUS, &normFOM);
+  MatNorm(romMat, NORM_FROBENIUS, &normROM);
+  MatNorm(hromMat, NORM_FROBENIUS, &normHROM);
+
+  MatNorm(resRomMat, NORM_FROBENIUS, &reduced->resNormROM);
+  MatNorm(resHromMat, NORM_FROBENIUS, &reduced->resNormHROM);
+
+  yk_textBoldBorder("Numerical Results");
+  reduced->relnormROM = normROM/normFOM;
+  reduced->relnormHROM = normHROM/normFOM;
+
+  for (i=0; i<reduced->nSims; i++)
+    printf("%g\n", reduced->r_t[i]);
+  for (i=0; i<reduced->nSims; i++)
+    printf("%g\n", reduced->h_t[i]);
+  for (i=reduced->nSims-5; i<reduced->nSims; i++){
+    /* reduced->r_t[i]/=fom->cpuTime; */
+    /* reduced->h_t[i]/=fom->cpuTime; */
+    reduced->aveR_t+=reduced->r_t[i];
+    reduced->aveH_t+=reduced->h_t[i];
+  }
+
+
+  reduced->aveR_t/=5.0;
+  reduced->aveH_t/=5.0;
+  /* printf("Relative Average Time fo find ROM: %g\n", reduced->aveR_t */
+  /* 	 /fom->cpuTime); */
+  /* printf("Relative Average Time fo find ROM: %g\n", reduced->aveH_t/ */
+  /* 	 fom->cpuTime); */
+
+  MatDestroy(&fomMat);
+  MatDestroy(&romMat);
+  MatDestroy(&hromMat);
+  MatDestroy(&resRomMat);
+  MatDestroy(&resHromMat);
+  VecDestroy(&fomVec);
+  VecDestroy(&romVec);
+  VecDestroy(&hromVec);
+}
+
+void yk_write2ExcelFile(Cluster *primal, Is_it *reduced){
+  int i, j;
+  int index_s = 0, index_t = 0, index_st = 0;
+  int index_s_r = 0, index_t_r = 0, index_st_r = 0;
+  int no_s=0, no_res=0;
+  char str_res[xf_MAXSTRLEN];
+  char str_res_st[xf_MAXSTRLEN];
+  char str_res_t[xf_MAXSTRLEN];
+  char nameOfxlsx[xf_MAXSTRLEN];
+  char str_eBasisSpace[xf_MAXSTRLEN];
+  char str_eBasisTime[xf_MAXSTRLEN];
+  char str_eReBasisSpace[xf_MAXSTRLEN];
+  char str_eReBasisTime[xf_MAXSTRLEN];
+  char str[xf_MAXSTRLEN];
+  char str_st[xf_MAXSTRLEN];
+  char str_t[xf_MAXSTRLEN];
+  int nSims =reduced->nSims;
+  lxw_workbook  *workbook;
+  lxw_worksheet *worksheet;
+  //---------------------------------------------------------------------------
+  // Initialization
+  //---------------------------------------------------------------------------
+  sprintf(str_eBasisSpace, "%g", reduced->eBasisSpace);
+  memmove(&str_eBasisSpace[0],&str_eBasisSpace[2],strlen(str_eBasisSpace)-1);
+  sprintf(str_eBasisTime, "%g", reduced->eBasisTime);
+  memmove(&str_eBasisTime[0], &str_eBasisTime[2], strlen(str_eBasisTime)-1);
+  sprintf(str_eReBasisSpace, "%g", reduced->eReBasisSpace);
+  memmove(&str_eReBasisSpace[0], &str_eReBasisSpace[2],
+	  strlen(str_eReBasisSpace)-1);
+  sprintf(str_eReBasisTime, "%g", reduced->eReBasisTime);
+  memmove(&str_eReBasisTime[0], &str_eReBasisTime[2],
+	  strlen(str_eReBasisTime) - 1);
+  //set the name of the output file for xlsx for 2D at least
+  sprintf(nameOfxlsx, "yk_navier_stokes_nTW_%d_%d_%g_%d_%s_%s_%s_%s.xlsx",
+  	  reduced->nTimeSegs, reduced->nSubWindows,
+	  reduced->pSampleElems*100, reduced->nSampleTime,
+  	  str_eBasisSpace, str_eBasisTime, str_eReBasisSpace,
+  	  str_eReBasisTime);
+  printf("%s\n", nameOfxlsx);
+  workbook  = workbook_new(nameOfxlsx);
+  worksheet = workbook_add_worksheet(workbook, NULL);
+//Format the strings that will contain the basis data
+  //Space data
+  for (i=0; i<reduced->nTimeSegs*reduced->nSubWindows; i++){
+    index_s += sprintf(&str[index_s], "%d ",reduced->final_nBasis_s[i]);
+    index_st += sprintf(&str_st[index_st],"%d ",reduced->final_nBasis_st[i]);
+    index_t += sprintf(&str_t[index_t], "[");
+    for (j=0; j<reduced->final_nBasis_s[i]; j++){
+      index_t+=sprintf(&str_t[index_t],"%d",reduced->final_nBasis_t[no_s+j]);
+      if (j<reduced->final_nBasis_s[i]-1)
+	index_t +=sprintf(&str_t[index_t], " ");
+    }
+    no_s+=reduced->final_nBasis_s[i];
+    index_t+=sprintf(&str_t[index_t], "]");
+  }
+  //Residual Data
+  for (i=0 ; i<reduced->nTimeSegs; i++){
+    index_s_r +=
+      sprintf(&str_res[index_s_r], "%d ", reduced->final_Res_nBasis_s[i]);
+    index_st_r +=
+      sprintf(&str_res_st[index_st_r], "%d ", reduced->final_Res_nBasis_st[i]);
+    index_t_r += sprintf(&str_res_t[index_t_r], "[");
+    for (j=0; j<reduced->final_Res_nBasis_s[i]; j++){
+      index_t_r += sprintf(&str_res_t[index_t_r], "%d",
+			   reduced->final_Res_nBasis_t[no_res+j]);
+      if (j<reduced->final_Res_nBasis_s[i]-1)
+	index_t_r +=sprintf(&str_res_t[index_t_r], " ");
+    }
+    no_res+=reduced->final_Res_nBasis_s[i];
+    index_t_r+=sprintf(&str_res_t[index_t_r], "]");
+  }
+  //---------------------------------------------------------------------------
+  //Write to an excel file
+  //---------------------------------------------------------------------------
+  worksheet_write_string(worksheet, 0, 0, "Filename", NULL);
+  worksheet_write_string(worksheet, 1, 0, nameOfxlsx, NULL);
+  worksheet_write_string(worksheet, 0, 1, "nTW", NULL);
+  worksheet_write_number(worksheet, 1, 1, reduced->nTimeSegs, NULL);
+  worksheet_write_string(worksheet, 0, 2, "nSubPerW", NULL);
+  worksheet_write_number(worksheet, 1, 2, reduced->nSubWindows, NULL);
+  worksheet_write_string(worksheet, 0, 3, "lenWindow", NULL);
+  worksheet_write_number(worksheet, 1, 3,
+  			 primal->self->time.t_f/reduced->nTimeSegs, NULL);
+  worksheet_write_string(worksheet, 0, 4, "lenSubWindow", NULL);
+  worksheet_write_number(worksheet, 1, 4, primal->self->time.t_f
+			 /reduced->nTimeSegs/
+  			 reduced->nSubWindows, NULL);
+  worksheet_write_string(worksheet, 0, 5, "ns/es", NULL);
+  worksheet_write_number(worksheet, 1, 5, reduced->eBasisSpace, NULL);
+  worksheet_write_string(worksheet, 0, 6, "nt/et", NULL);
+  worksheet_write_number(worksheet, 1, 6, reduced->eBasisTime, NULL);
+  worksheet_write_string(worksheet, 0, 7, "ns", NULL);
+  worksheet_write_string(worksheet, 1, 7, str, NULL);
+  worksheet_write_string(worksheet, 0, 8, "nt", NULL);
+  worksheet_write_string(worksheet, 1, 8, str_t, NULL);
+  worksheet_write_string(worksheet, 0, 9, "nst", NULL);
+  worksheet_write_string(worksheet, 1, 9, str_st, NULL);
+  worksheet_write_string(worksheet, 0, 10, "relative error", NULL);
+  worksheet_write_number(worksheet, 1, 10, reduced->relnormROM, NULL);
+  worksheet_write_string(worksheet, 0, 11, "residual", NULL);
+  worksheet_write_number(worksheet, 1, 11,  reduced->resNormROM, NULL);
+  worksheet_write_string(worksheet, 0, 12, "nSim1", NULL);
+  worksheet_write_number(worksheet, 1, 12, reduced->r_t[nSims-5], NULL);
+  worksheet_write_string(worksheet, 0, 13, "nSim2", NULL);
+  worksheet_write_number(worksheet, 1, 13, reduced->r_t[nSims-4], NULL);
+  worksheet_write_string(worksheet, 0, 14, "nSim3", NULL);
+  worksheet_write_number(worksheet, 1, 14, reduced->r_t[nSims-3], NULL);
+  worksheet_write_string(worksheet, 0, 15, "nSim4", NULL);
+  worksheet_write_number(worksheet, 1, 15, reduced->r_t[nSims-2], NULL);
+  worksheet_write_string(worksheet, 0, 16, "nSim5", NULL);
+  worksheet_write_number(worksheet, 1, 16, reduced->r_t[nSims-1], NULL);
+  worksheet_write_string(worksheet, 0, 17, "Average", NULL);
+  worksheet_write_number(worksheet, 1, 17, reduced->aveR_t, NULL);
+  worksheet_write_string(worksheet, 0, 18, "ns_r/es_r", NULL);
+  worksheet_write_number(worksheet, 1, 18, reduced->eReBasisSpace, NULL);
+  worksheet_write_string(worksheet, 0, 19, "nt_r/et_r", NULL);
+  worksheet_write_number(worksheet, 1, 19, reduced->eReBasisTime, NULL);
+  worksheet_write_string(worksheet, 0, 20, "sample time", NULL);
+  worksheet_write_number(worksheet, 1, 20, reduced->nSampleTime, NULL);
+  worksheet_write_string(worksheet, 0, 21, "sample space", NULL);
+  worksheet_write_number(worksheet, 1, 21, reduced->nSampleNodes, NULL);
+  worksheet_write_string(worksheet, 0, 22, "ns_r", NULL);
+  worksheet_write_string(worksheet, 1, 22, str_res, NULL);
+  worksheet_write_string(worksheet, 0, 23, "nt_r", NULL);
+  worksheet_write_string(worksheet, 1, 23, str_res_t, NULL);
+  worksheet_write_string(worksheet, 0, 24, "nst_r", NULL);
+  worksheet_write_string(worksheet, 1, 24, str_res_st, NULL);
+  worksheet_write_string(worksheet, 0, 25, "relative error gnat", NULL);
+  worksheet_write_number(worksheet, 1, 25, reduced->relnormHROM, NULL);
+  worksheet_write_string(worksheet, 0, 26, "residualgnat", NULL);
+  worksheet_write_number(worksheet, 1, 26,  reduced->resNormHROM, NULL);
+  worksheet_write_string(worksheet, 0, 27, "nSim1", NULL);
+  worksheet_write_number(worksheet, 1, 27, reduced->h_t[nSims-5], NULL);
+  worksheet_write_string(worksheet, 0, 28, "nSim2", NULL);
+  worksheet_write_number(worksheet, 1, 28, reduced->h_t[nSims-4], NULL);
+  worksheet_write_string(worksheet, 0, 29, "nSim3", NULL);
+  worksheet_write_number(worksheet, 1, 29, reduced->h_t[nSims-3], NULL);
+  worksheet_write_string(worksheet, 0, 30, "nSim4", NULL);
+  worksheet_write_number(worksheet, 1, 30, reduced->h_t[nSims-2], NULL);
+  worksheet_write_string(worksheet, 0, 31, "nSim5", NULL);
+  worksheet_write_number(worksheet, 1, 31, reduced->h_t[nSims-1], NULL);
+  worksheet_write_string(worksheet, 0, 32, "Average gnat", NULL);
+  worksheet_write_number(worksheet, 1, 32, reduced->aveH_t, NULL);
+  workbook_close(workbook);
+
+  free(reduced->r_t);
+  free(reduced->h_t);
+  free(reduced->final_nBasis_s);
+  free(reduced->final_nBasis_t);
+  free(reduced->final_nBasis_st);
+  free(reduced->final_Res_nBasis_s);
+  free(reduced->final_Res_nBasis_t);
+  free(reduced->final_Res_nBasis_st);
+
+}
+
+int main(int argc, char** argv) {
+//------------------------------------//-------------------------------------
+  //Variables here                     // Comments section
+  //------------------------------------//-------------------------------------
+  int ierr;
+  int myRank, nProc;
+  char *ArgIn[] = {"job", "NULL", ".job file name to read (run parameters)",
+                   "input", "NULL", ".inp file name to read (run ROM params)",
+                   "nWindow", "10", "starting number of time windows",
+                   "\0"};
+  Multiverse *multiquation = (Multiverse *) malloc (sizeof(Multiverse));
+  Cluster *rom = (Cluster *) malloc (sizeof(Cluster));
+  Cluster *fom = (Cluster *) malloc (sizeof(Cluster));
+  Cluster *hrom = (Cluster *) malloc (sizeof(Cluster));
+  Is_it *reduced =(Is_it*) malloc (sizeof(Is_it));
+  yk_PrimalSolver *ykflow = new_Xflow();
+  yk_Xflow *xflow = (yk_Xflow *) ykflow->solver;  //polymorphism
+
+  //---------------------------------------------------------------------------
+  // Intialize everything related to the xflow stuff
+  //---------------------------------------------------------------------------
+  SlepcInitialize(&argc, &argv, NULL, NULL);
+  PetscViewerPushFormat(PETSC_VIEWER_STDOUT_SELF, PETSC_VIEWER_ASCII_MATLAB);
+
+  // initialize key-value
+  xf_Call(xf_CreateKeyValue(&xflow->KeyValueArg));
+  /* // parse arguments */
+
+  ierr = xf_ParseArg(ArgIn, argc, argv, xflow->KeyValueArg);
+  if (ierr == xf_FORCE_QUIT) return xf_OK;
+  if (ierr != xf_OK) return xf_Error(ierr);
+  //---------------------------------------------------------------------------
+  // Initialization on ykflow
+  //---------------------------------------------------------------------------
+  yk_initializeYkflow(ykflow, multiquation, fom, reduced);
+ //---------------------------------------------------------------------------
+  // Run the Forward Order Model (FOM) on xflow
+  //---------------------------------------------------------------------------
+  yk_forwardSimulation(xflow, fom);
+  //---------------------------------------------------------------------------
+  // Run Model Reduction Routines/ WST-LSPG
+  //---------------------------------------------------------------------------
+  if (reduced->runFomOnly == 0){
+    yk_RunErrorEstChaos(ykflow, multiquation, fom, rom, hrom, argv, reduced);
+    //-------------------------------------------------------------------------
+    // PostProcess everything and save data
+    //-------------------------------------------------------------------------
+    yk_write2ExcelFile(fom, reduced);
+  }
+  //---------------------------------------------------------------------------
+  // Destroy everything
+  //---------------------------------------------------------------------------
+  printf("CPU TIME\n");
+  printf("%0.16e\n", fom->cpuTime);
+
+  destroySystem(multiquation->equation, fom->self);
+  free(fom->self->index);
+  free(fom->self);
+  xf_Call(xf_DestroyTimeHistData(xflow->TimeHistData));
+  xf_CloseEqnSetLibrary(&xflow->All);
+  xf_Call(xf_DestroyAll(xflow->All));
+
+  xf_Call(xf_DestroyKeyValue(xflow->KeyValueArg));
+  free(reduced->win_i);
+  free(reduced->params);
+  free(reduced->paramsL);
+  free(reduced->paramsH);
+  free(reduced->dparams);
+  free(reduced->paramMeshGrid);
+  free(reduced);
+  free(rom);
+  free(fom);
+  free(hrom);
+  free(multiquation);
+  delete_Xflow(ykflow);
+
+  SlepcFinalize();
+
+  /* return 0; */
+
+}
+
+
+
+//SAVE THIS PART IT"S EXTRA BUT NECCESARY
+
+
   /* enum xfe_TimeSchemeType TimeScheme; */
   /* real iTime, Time; */
   /* int TimeStep; */
@@ -1681,173 +2076,3 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   /* /\* printf("----------------------------------------------------------------\n"); *\/ */
   /* /\* yk_createHyperReducedOrderModel(ykflow, multiquation, fom, hrom, reduced); *\/ */
   /* /\* yk_runHyperReducedOrderModel(ykflow, multiquation, fom, hrom, reduced); *\/ */
-
-  /* //--------------------------------------------------------------------------- */
-  /* // Space-Time Reduced-Order Modeling */
-  /* //--------------------------------------------------------------------------- */
-  yk_textBoldBorder("ykflow: Windowed Space-Time Model Order Reduction");
-
-  /* /\* With windowed space-time, we treat each window as its own entity. Each window will solve a residual minimization problem. Instead of doing what I did in the pymortestbed code, I'm going to keep the routine in the original createROM and perform script as much as possible, the same. Treat it more like a wrapper code at the moment. *\/ */
-  char windowString[xf_MAXSTRLEN];
-  for (i=0; i<reduced->nTimeSegs; i++){ //Number of time windows
-    fom->self->time.window_i = i;
-    sprintf(windowString, "W i n d o w %d", i);
-    yk_textBorder(windowString);
-    //-------------------------------------------------------------------------
-    // Reduced Order Modeling
-    //-------------------------------------------------------------------------
-    yk_textBoldBorder("Windowed ST Least-Squares Petrov-Galerkin");
-    yk_textBorder("1. Create the Reduced Order Model");
-    yk_createReducedOrderModel_ST(ykflow, multiquation, fom, reduced);
-    yk_textBorder("2. Find the Reduced Order Model");
-    yk_runReducedOrderModel_ST(ykflow, multiquation, fom, rom, reduced);
-
-    //-------------------------------------------------------------------------
-    // Hyper-Reduced Order Modeling
-    //-------------------------------------------------------------------------
-    yk_textBoldBorder("Windowed ST Gauss Newton w/ Approx Tensors");
-    yk_textBorder("1. Create the hyper reduced order model");
-    yk_createHyperReducedOrderModel_ST(ykflow, multiquation, fom, rom,reduced);
-    yk_textBorder("2. Find the hyper reduced order model");
-    yk_runHyperReducedOrderModel_ST(ykflow, multiquation, fom, hrom, reduced);
-    //-------------------------------------------------------------------------
-    // Post process here
-    //-------------------------------------------------------------------------
-    if (i==reduced->nTimeSegs-1){
-      for (j=0; j<fom->self->time.count; j++){
-	ks_readSolution(multiquation->equation, fom->self, j+1);
-	ks_readSolution(multiquation->equation, rom->self, j+1);
-	ks_readSolution(multiquation->equation, hrom->stateFull, j+1);
-	array2Vec(multiquation->equation, fom->self, fom->self->space, fomVec);
-	array2Vec(multiquation->equation, rom->self, fom->self->space, romVec);
-	array2Vec(multiquation->equation, hrom->stateFull, fom->self->space, hromVec);
-	ks_Vec2MatCol(fomMat, sysSize, fom->self->index, j, fomVec, INSERT_VALUES);
-	ks_Vec2MatCol(romMat, sysSize, fom->self->index, j, romVec, INSERT_VALUES);
-	ks_Vec2MatCol(hromMat, sysSize, fom->self->index, j, hromVec, INSERT_VALUES);
-      }
-    }
-
-    yk_textBorder("Postprocess Data");
-    yk_print2xflowTxt(ykflow, multiquation, rom->self);
-    yk_print2xflowTxt(ykflow, multiquation, hrom->stateFull);
-    //-------------------------------------------------------------------------
-    // Destroy everything
-    //-------------------------------------------------------------------------
-    yk_destroyReducedOrderModel_ST(ykflow, multiquation, fom, rom, reduced);
-    yk_destroyHyperReducedOrderModel_ST(ykflow, multiquation, fom, hrom, reduced);
-
-    for (j=0; j<xflow->All->Mesh->nElemGroup; j++)
-      xf_Release((void **) xflow->All->Mesh->ElemGroup[j].sElem);
-
-  }
-  MatAssemblyBegin(fomMat, MAT_FINAL_ASSEMBLY);
-  MatAssemblyEnd(fomMat, MAT_FINAL_ASSEMBLY);
-
-  MatAssemblyBegin(romMat, MAT_FINAL_ASSEMBLY);
-  MatAssemblyEnd(romMat, MAT_FINAL_ASSEMBLY);
-
-  MatAssemblyBegin(hromMat, MAT_FINAL_ASSEMBLY);
-  MatAssemblyEnd(hromMat, MAT_FINAL_ASSEMBLY);
-
-  MatAXPY(romMat, -1, fomMat, SAME_NONZERO_PATTERN);
-  MatAXPY(hromMat, -1, fomMat, SAME_NONZERO_PATTERN);
-
-  MatNorm(romMat, NORM_FROBENIUS, &normROM);
-  MatNorm(hromMat, NORM_FROBENIUS, &normHROM);
-
-  MatNorm(fomMat, NORM_FROBENIUS, &normFOM);
-
-  yk_textBoldBorder("Numerical Results");
-  printf("Mean Square Error for ROM: %0.16e\n", normROM/normFOM);
-  printf("Mean Square Error for HROM: %0.16e\n", normHROM/normFOM);
-
-
-
-  MatDestroy(&fomMat);
-  MatDestroy(&romMat);
-  MatDestroy(&hromMat);
-  VecDestroy(&fomVec);
-  VecDestroy(&romVec);
-  VecDestroy(&hromVec);
-}
-
-
-
-int main(int argc, char** argv) {
-//------------------------------------//-------------------------------------
-  //Variables here                     // Comments section
-  //------------------------------------//-------------------------------------
-  int ierr;
-  int myRank, nProc;
-  char *ArgIn[] = {"job", "NULL", ".job file name to read (run parameters)",
-                   "input", "NULL", ".inp file name to read (run ROM params)",
-                   "nWindow", "10", "starting number of time windows",
-                   "\0"};
-  Multiverse *multiquation = (Multiverse *) malloc (sizeof(Multiverse));
-  Cluster *rom = (Cluster *) malloc (sizeof(Cluster));
-  Cluster *fom = (Cluster *) malloc (sizeof(Cluster));
-  Cluster *hrom = (Cluster *) malloc (sizeof(Cluster));
-  Is_it *reduced =(Is_it*) malloc (sizeof(Is_it));
-  yk_PrimalSolver *ykflow = new_Xflow();
-  yk_Xflow *xflow = (yk_Xflow *) ykflow->solver;  //polymorphism
-  //---------------------------------------------------------------------------
-  // Intialize everything related to the xflow stuff
-  //---------------------------------------------------------------------------
-  SlepcInitialize(&argc, &argv, NULL, NULL);
-  PetscViewerPushFormat(PETSC_VIEWER_STDOUT_SELF, PETSC_VIEWER_ASCII_MATLAB);
-
-  // initialize key-value
-  xf_Call(xf_CreateKeyValue(&xflow->KeyValueArg));
-  /* // parse arguments */
-
-  ierr = xf_ParseArg(ArgIn, argc, argv, xflow->KeyValueArg);
-  if (ierr == xf_FORCE_QUIT) return xf_OK;
-  if (ierr != xf_OK) return xf_Error(ierr);
-  //---------------------------------------------------------------------------
-  // Initialization on ykflow
-  //---------------------------------------------------------------------------
-  yk_initializeYkflow(ykflow, multiquation, fom, reduced);
-  //---------------------------------------------------------------------------
-  // Run the Forward Order Model (FOM) on xflow
-  //---------------------------------------------------------------------------
-  yk_forwardSimulation(xflow, fom);
-
-  //---------------------------------------------------------------------------
-  // Run Model Reduction Routines/ WST-LSPG
-  //---------------------------------------------------------------------------
-  yk_RunErrorEstChaos(ykflow, multiquation, fom, rom, hrom, argv, reduced);
-  //---------------------------------------------------------------------------
-  // PostProcess everything
-  //---------------------------------------------------------------------------
-  //---------------------------------------------------------------------------
-  // Destroy everything
-  //---------------------------------------------------------------------------
-  destroySystem(multiquation->equation, fom->self);
-  free(fom->self->index);
-  free(fom->self);
- /*  xf_Call(xf_DestroyVectorGroup(xflow->UG, xfe_True, xfe_True)); */
-  xf_Call(xf_DestroyTimeHistData(xflow->TimeHistData));
-  xf_CloseEqnSetLibrary(&xflow->All);
-  xf_Call(xf_DestroyAll(xflow->All));
-
-  xf_Call(xf_DestroyKeyValue(xflow->KeyValueArg));
- /*  /\* free(rom->self); *\/ */
-  /* free(reduced->reducedMesh_Os.i_ElemCom); */
-  free(reduced->win_i);
-  free(reduced->params);
-  free(reduced->paramsL);
-  free(reduced->paramsH);
-  free(reduced->dparams);
-  free(reduced->paramMeshGrid);
-  free(reduced);
-  free(rom);
-  free(fom);
-  free(hrom);
-  free(multiquation);
-  delete_Xflow(ykflow);
-
-  SlepcFinalize();
-
-  /* return 0; */
-
-}

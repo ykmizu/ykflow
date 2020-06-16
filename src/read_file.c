@@ -135,10 +135,10 @@ void read_input(int argc, char *argv[], Universe eqn, Galaxy* u_fine,
         if (strcmp(lines, "timeMethod") == 0){
           u_coarse->time_method = atoi(lines_temp);
 	}else if (strcmp(lines, "runFom") == 0){
-	  printf("readfile c\n");
 	  reduced->runFom = atoi(lines_temp);
-	  printf("LALALLALAALLALALALA %d\n", reduced->runFom);
-        }else if (strcmp(lines, "burnTimeLength") == 0){
+	}else if (strcmp(lines, "runFomOnly")==0){
+	  reduced->runFomOnly = atoi(lines_temp);
+	}else if (strcmp(lines, "burnTimeLength") == 0){
           u_coarse->burnT_f = atof(lines_temp);
         }else if (strcmp(lines, "dt") == 0){
           u_coarse->time.dt = atof(lines_temp);
@@ -154,6 +154,8 @@ void read_input(int argc, char *argv[], Universe eqn, Galaxy* u_fine,
           u_coarse->space.x_f = atof(lines_temp);
         }else if (strcmp(lines, "X_0") == 0){
           u_coarse->space.x_0 = atof(lines_temp);
+	}else if (strcmp(lines, "numSimulations") == 0){
+	  reduced->nSims = atoi(lines_temp);
         }else if (strcmp(lines, "interpolationNumber") == 0 ){
           u_coarse->basis.p = atoi(lines_temp);
         }else if (strcmp(lines, "newInterpolationNumber") == 0){
@@ -216,6 +218,7 @@ void read_input(int argc, char *argv[], Universe eqn, Galaxy* u_fine,
 	    reduced->params[i] = atof(strtok(NULL, " "));
 	}else if (strcmp(lines, "paramsL") == 0){
 	  reduced->paramsL[0] = atof(strtok(lines_temp, " "));
+	  printf("%g\n", reduced->paramsL[0]);
 	  for (i=1; i<reduced->numParams; i++)
 	    reduced->paramsL[i] = atof(strtok(NULL, " "));
 	}else if (strcmp(lines, "paramsH") == 0){
@@ -227,13 +230,17 @@ void read_input(int argc, char *argv[], Universe eqn, Galaxy* u_fine,
 	  for (i=1; i<reduced->numParams; i++)
 	    reduced->dparams[i] = atof(strtok(NULL, " "));
 	  reduced->numParamSet = 1;
-	  for (i=0; i<reduced->numParams; i++){
-	    inter= ((reduced->paramsH[i]*10-reduced->paramsL[i]*10)/
-		    reduced->dparams[i])/10+1;
-	    reduced->numParamSet *= inter;
-	  }
-	  /* }else if (strcmp(lines, "typeSolutionLSS") ==0){ */
-	  /*   miscParameters[6] = atoi(lines_temp); */
+	  inter= ((reduced->paramsH[1]*10-reduced->paramsL[1]*10)/
+		  reduced->dparams[1])/10+1;
+
+	  reduced->numParamSet *= inter;
+	  inter= ((reduced->paramsH[0]*10-reduced->paramsL[0]*10)/
+		  reduced->dparams[0])/10+1;
+
+	  reduced->numParamSet *= inter;
+
+	/* }else if (strcmp(lines, "typeSolutionLSS") ==0){ */
+	/*   miscParameters[6] = atoi(lines_temp); */
 	  //}else if (strcmp(lines, "designParameter") ==0){
 	  //miscParameters[7] = atoi(lines_temp);
 	  //	}else if (strcmp(lines, "newDesignParameter") == 0){

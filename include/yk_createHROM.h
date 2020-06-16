@@ -47,9 +47,10 @@ void yk_createReducedOrderModel_ST(yk_PrimalSolver *ykflow,
                                    Multiverse *multiquation, Cluster *primal,
                                    Is_it *reduced);
 
-void yk_runReducedOrderModel_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
-			     Cluster *primal, Cluster *primalApprox,
-			     Is_it *reduced);
+void yk_runReducedOrderModel_ST(yk_PrimalSolver *ykflow,
+				Multiverse *multiquation,
+				Cluster *primal, Cluster *primalApprox,
+				double *time_spent, Is_it *reduced);
 
 void yk_destroyReducedOrderModel_ST(yk_PrimalSolver *ykflow,
                                     Multiverse *multiquation, Cluster *primal,
@@ -65,9 +66,10 @@ void yk_createHyperReducedOrderModel_ST(yk_PrimalSolver *ykflow,
                                         Multiverse *multiquation,
                                         Cluster *primal, Cluster *primalApprox,
                                         Is_it *reduced);
-void yk_runHyperReducedOrderModel_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
-			     Cluster *primal, Cluster *primalApprox,
-			     Is_it *reduced);
+void yk_runHyperReducedOrderModel_ST(yk_PrimalSolver *ykflow,
+				     Multiverse *multiquation,
+				     Cluster *primal, Cluster *primalApprox,
+				     double *time_spent, Is_it *reduced);
 
 
 void yk_destroyHyperReducedOrderModel_ST(yk_PrimalSolver *ykflow,
@@ -80,7 +82,8 @@ void yk_createHyperReducedOrderModel(yk_PrimalSolver *ykflow,
 
 void yk_runHyperReducedOrderModel(yk_PrimalSolver *ykflow,
 				  Multiverse *multiquation, Cluster *primal,
-				  Cluster *primalApprox,Is_it *reduced);
+				  Cluster *primalApprox,
+				  Is_it *reduced);
 
 /* void minElements(Multiverse *multiquation, Cluster *primal, int *nodeSet, /\*  *\/ */
 /*                  Mat *spaceIdentity, Is_it *reduced); */

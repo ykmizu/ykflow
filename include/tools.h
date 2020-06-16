@@ -22,7 +22,8 @@
 #include "system_initialization.h"
 //#include "ks_copyUtype.h"
 #include <time.h>
-
+void yk_VecCreateSeq(Vec *vec, PetscInt size);
+void yk_MatCreateSeqDense(Mat *mat, PetscInt rows, PetscInt cols);
 /* void moorePenrosePseudoInv(Mat A, int rowSize, int colSize, Mat *Aplus); */
 void yk_kkron(Mat A, Mat B, Mat *KKRON);
 void yk_kkron_DENSE(Mat A, Mat B, Mat *KKRON);

@@ -1,7 +1,18 @@
 
 #include "tools.h"
 
+void yk_VecCreateSeq(Vec *vec, PetscInt size){
+  VecCreate(PETSC_COMM_SELF, vec);
+  VecSetSizes(*vec, size, size);
+  VecSetType(*vec, VECSEQ);
+}
 
+void yk_MatCreateSeqDense(Mat *mat, PetscInt rows, PetscInt cols){
+  MatCreate(PETSC_COMM_SELF, mat);
+  MatSetSizes(*mat, rows, cols, rows, cols);
+  MatSetType(*mat, MATSEQDENSE);
+  MatSetUp(*mat);
+}
 
 /* void moorePenrosePseudoInv(Mat A, int rowSize, int colSize, Mat *Aplus){ */
 /*   int i, j; */

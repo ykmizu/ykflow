@@ -1,4 +1,4 @@
-t's in#include "yk_gaussNewtonSolve.h"
+#include "yk_gaussNewtonSolve.h"
 #include <time.h>
 
 void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
@@ -56,8 +56,6 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   //---------------------------------------------------------------------------
   // Initialization
   //---------------------------------------------------------------------------
-  printf("it's in\n");
-  getchar();
   MatGetSize(reduced->ST_rOBState, &rowB, &basis);
   left_t_node = primalApprox->self->time.t_0/dt;
   right_t_node = primalApprox->self->time.t_f/dt;
@@ -208,8 +206,9 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
       //Calculate the Residual and the Jacobian here
       //-----------------------------------------------------------------------
       primalApprox->self->time.node = i;
-      ykflow->Residual(ykflow, multiquation, primalApprox, residualTemp,
+      ykflow->Residual(ykflow, multiquation, primalApprox->self, residualTemp,
       		       dRdUTemp, reduced, innertimesolver);
+
       VecNorm(residualTemp, NORM_2, &val);
       //-----------------------------------------------------------------------
       //Add the residual for time i to a large ass space time vector
@@ -252,8 +251,6 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
     	fprintf(residualSnapshotFile, " %0.20e", snapshotsRJ[j]);
       fprintf(residualSnapshotFile, "\n");
     }
-
-    printf("tired %g\n", normp);
     if (normp >pow(10,-6)){
       VecScale(st_residual, -1);
       //---------------------------------------------------------------------
