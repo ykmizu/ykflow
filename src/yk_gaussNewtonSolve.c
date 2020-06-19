@@ -162,6 +162,7 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   ks_readSolution(_eqnRd, primalApprox->reduced, primalApprox->self->time.window_i);
 
   array2Vec(_eqnRd, primalApprox->reduced, reducedSpace, primalReducedVec);
+  VecView(primalReducedVec, PETSC_VIEWER_STDOUT_SELF);
   //initial conditions (I don't think I need this
   if (reduced->hrom==0){
     ks_readSolution(_eqn, primalApprox->self, left_t_node);

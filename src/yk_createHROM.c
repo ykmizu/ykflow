@@ -35,6 +35,7 @@ void yk_createReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   PetscInt win_i =primal->self->time.window_i;
   int info_n;
   PetscInt basis_0;
+  char cwd[10000];
   //---------------------------------------------------------------------------
   // Initialization (Mallocs and stuff)
   //---------------------------------------------------------------------------
@@ -54,6 +55,14 @@ void yk_createReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   //---------------------------------------------------------------------------
   //Prepare to find the basis for each subspace
   //Set the count for number of time stuff to deal with
+
+  if (getcwd(cwd, sizeof(cwd)) != NULL) {
+    printf("JUNE 18 important one: Current working dir: %s\n", cwd);
+  } else {
+    perror("getcwd() error");
+    return 1;
+  }
+  getchar();
   primal->self->time.count  = snapshotCount_sub;
   // For each time window, we need to build the basis based on # of time window
   basis_0 = 0;
@@ -128,7 +137,13 @@ void yk_createReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   //---------------------------------------------------------------------------
   /* MatGetSize(reduced->rOBState, &m, &n); */
   /* MatGetSize(reduced->ST_rOBState, &m, &n); */
-
+  if (getcwd(cwd, sizeof(cwd)) != NULL) {
+    printf("OVER JUNE 18 important one: Current working dir: %s\n", cwd);
+  } else {
+    perror("getcwd() error");
+    return 1;
+  }
+  getchar();
   //---------------------------------------------------------------------------
   // Destroy Everything
   //---------------------------------------------------------------------------
@@ -222,6 +237,7 @@ void yk_runReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   //---------------------------------------------------------------------------
   // Find the initial conditions for the approximated states and print
   //---------------------------------------------------------------------------
+
   leftTimeNode = primal->self->time.t_0/primal->self->time.dt;
   if (leftTimeNode == 0){
     ks_readSolution(*_eqnFull, primal->self, 0);
@@ -1177,7 +1193,9 @@ void createInitialConditions_ST(yk_PrimalSolver *ykflow,
 						 sizeof(PetscScalar));
   char tempS[1000];
   struct stat sb = {0};
- //---------------------------------------------------------------------------
+  /* if (alfa % 2 == 0) */
+  /*   alfa -= 1; */
+  //---------------------------------------------------------------------------
   // initialization
   //---------------------------------------------------------------------------
 
@@ -1200,6 +1218,7 @@ void createInitialConditions_ST(yk_PrimalSolver *ykflow,
   sprintf(nameOfDir, "%s/%s_M_%d_A_%d_Re_%d", ykflow->path,
 	  multiquation->equation.nameEqn, mach, alfa, reynolds);
   getcwd(cwd, sizeof(cwd));
+  printf("CWD ITNERESTED %s\n", cwd);
   printf("%s\n", nameOfDir);
   //Go into the folder now
   if (stat(nameOfDir, &sb) == 0 && S_ISDIR(sb.st_mode)) {

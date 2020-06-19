@@ -32,6 +32,7 @@ Mat * yk_createSnapshotState(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   PetscScalar *state_0 =                //state array to add to snapshot matrix
     (PetscScalar *) malloc (primal->self->systemSize*sizeof(PetscScalar));
   char cwd[1024];
+  char cwd2[1024];
   char fomBuffer[50];
   Mat *snapshot_mu;
   PetscInt row, col;
@@ -72,6 +73,8 @@ Mat * yk_createSnapshotState(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   // Implementation
   //---------------------------------------------------------------------------
   for (p = 0; p< reduced->numParamSet; p++){
+    getcwd(cwd2, sizeof(cwd2));
+
     //Retrieve the data set name and enter that directory
     ykflow->FomName(ykflow, multiquation->equation, reduced, p, fomBuffer);
     printf("Get Data from --->>>> %s\n", fomBuffer);
@@ -106,7 +109,7 @@ Mat * yk_createSnapshotState(yk_PrimalSolver *ykflow, Multiverse *multiquation,
     }
     MatAssemblyBegin(snapshot_mu[p], MAT_FINAL_ASSEMBLY);
     MatAssemblyEnd(snapshot_mu[p], MAT_FINAL_ASSEMBLY);
-    chdir("../");
+    chdir(cwd2);
   }
 
   MatAssemblyBegin(*snapshot, MAT_FINAL_ASSEMBLY);

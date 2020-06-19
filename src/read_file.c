@@ -138,6 +138,8 @@ void read_input(int argc, char *argv[], Universe eqn, Galaxy* u_fine,
 	  reduced->runFom = atoi(lines_temp);
 	}else if (strcmp(lines, "runFomOnly")==0){
 	  reduced->runFomOnly = atoi(lines_temp);
+	}else if (strcmp(lines, "runHrom")==0){
+	  reduced->runHrom = atoi(lines_temp);
 	}else if (strcmp(lines, "burnTimeLength") == 0){
           u_coarse->burnT_f = atof(lines_temp);
         }else if (strcmp(lines, "dt") == 0){

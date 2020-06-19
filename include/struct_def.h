@@ -113,6 +113,7 @@ typedef struct { //the command module
   int systemSize;
   PetscInt *index;
   int runFom;
+  int runHrom;
 }Galaxy; //Galaxies
 
 
@@ -209,6 +210,7 @@ typedef struct{
   PetscInt *final_Res_nBasis_t;
   PetscInt *final_Res_nBasis_st;
   int runFomOnly;
+  int runHrom;
 }Is_it;
 
 
