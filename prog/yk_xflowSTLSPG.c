@@ -573,11 +573,9 @@ void yk_add2VectorGroupScalar(xf_VectorGroup *A, double randomV){
 void yk_fomBuffer(yk_PrimalSolver *ykflow, Universe equation, Is_it *reduced, \
 		  int p, char *nameOfDir){
 
-  int mach= round(reduced->paramMeshGrid[p*reduced->numParams]*10);
-  int alfa = reduced->paramMeshGrid[p*reduced->numParams+1];
+  int mach= reduced->paramMeshGrid[p*reduced->numParams]*100;
+  int alfa = reduced->paramMeshGrid[p*reduced->numParams+1]*100;
   int reynolds = reduced->paramMeshGrid[p*reduced->numParams+2];
-  printf("%g\n", reduced->paramMeshGrid[p*reduced->numParams]*10);
-  printf("%d %d %d\n", mach, alfa, reynolds);
   sprintf(nameOfDir, "%s/%s_M_%d_A_%d_Re_%d", ykflow->path, equation.nameEqn,
 	  mach,  alfa, reynolds);
 }
@@ -1118,7 +1116,6 @@ void definelocalMeshGrid(int paramNumber, Is_it *reduced, double *testparam,
 
   double value =reduced->paramsL[paramNumber];
   do{
-    printf("%g\n", value);
     testparam[paramNumber] = value;
     if (paramNumber==reduced->numParams-1){
       for(i=0; i<reduced->numParams; i++)
@@ -1130,10 +1127,7 @@ void definelocalMeshGrid(int paramNumber, Is_it *reduced, double *testparam,
     //return nextvalue;
 
     value += reduced->dparams[paramNumber];
-    printf("%g\n", value);
-    printf("left %d\n", (int)round(value*10) );
-    printf("right %d\n", (int)(reduced->paramsH[paramNumber]*10+reduced->dparams[paramNumber]*10));
-  }while ((int)round(value*10) <(int)(reduced->paramsH[paramNumber]*10+reduced->dparams[paramNumber]*10));
+  }while ((int)round(value*100) <(int)(reduced->paramsH[paramNumber]*100+reduced->dparams[paramNumber]*100));
 }
 
 
@@ -1471,7 +1465,7 @@ void yk_createSnapshotResidualFile(yk_PrimalSolver *ykflow,
       system(outputFile);
     }
     chdir(paramCalc);
-
+    printf("FIRST TWO WRRKS\n");
     //Implement gauss newton solve to find the reduced states
     yk_runReducedOrderModel_ST(ykflow_p, multiquation, fom, rom_p, NULL, reduced);
     //Open the residual file GN solver wrote and copy to the master res file
@@ -1691,15 +1685,6 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   // Space-Time Reduced-Order Modeling
   //---------------------------------------------------------------------------
   yk_textBoldBorder("ykflow: Windowed Space-Time Model Order Reduction");
-
-  if (getcwd(cwd, sizeof(cwd)) != NULL) {
-    printf("important one: Current working dir: %s\n", cwd);
-  } else {
-    perror("getcwd() error");
-    return 1;
-  }
-  getchar();
-
   for (i=0; i<reduced->nTimeSegs; i++){ //Number of time windows
     fom->self->time.window_i = i;
     sprintf(windowString, "W i n d o w  %d", i);
@@ -1712,7 +1697,7 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
     yk_createReducedOrderModel_ST(ykflow, multiquation, fom, reduced);
     yk_textBorder("2. Find the Reduced Order Model");
     yk_runReducedOrderModel_ST(ykflow, multiquation, fom, rom, reduced->r_t,
-			       reduced);
+    			       reduced);
     //-------------------------------------------------------------------------
     // Hyper-Reduced Order Modeling
     //-------------------------------------------------------------------------
@@ -2030,14 +2015,6 @@ int main(int argc, char** argv) {
   yk_PrimalSolver *ykflow = new_Xflow();
   yk_Xflow *xflow = (yk_Xflow *) ykflow->solver;  //polymorphism
   char cwd[xf_MAXSTRLEN];
-  if (getcwd(cwd, sizeof(cwd)) != NULL) {
-    printf("important one: Current working dir: %s\n", cwd);
-  } else {
-    perror("getcwd() error");
-    return 1;
-  }
-  getchar();
-
   //---------------------------------------------------------------------------
   // Intialize everything related to the xflow stuff
   //---------------------------------------------------------------------------

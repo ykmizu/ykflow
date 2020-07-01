@@ -59,7 +59,6 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   MatGetSize(reduced->ST_rOBState, &rowB, &basis);
   left_t_node = primalApprox->self->time.t_0/dt;
   right_t_node = primalApprox->self->time.t_f/dt;
-
   if (reduced->hrom==0){
     ST_rOBState = reduced->ST_rOBState;
     ST_rOBState_i = reduced->ST_rOBState_i;
@@ -82,7 +81,6 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   cc = (PetscScalar *) malloc (size_Xs*basis*sizeof(PetscScalar));
   /* residual_i = (PetscScalar *) malloc (size_Xs*sizeof(PetscScalar)); */
   index_Xs = (PetscInt *) malloc(size_Xs*sizeof(PetscInt));
-
   for (i=0; i<size_Xs; i++) {index_Xs[i] = i;}
 
   for (i=0; i<basis; i++)  {nSTBasisIndex[i] = i;}
@@ -93,8 +91,6 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   VecSetSizes(p, basis, basis);
   VecSetType(p, VECSEQ);
 
-  printf("%d\n", size_Xs);
-  printf("guass newton\n");
   VecCreate(PETSC_COMM_SELF, &residualTemp);
   VecSetSizes(residualTemp, size_Xs, size_Xs);
   VecSetType(residualTemp, VECSEQ);
@@ -106,7 +102,6 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   VecCreate(PETSC_COMM_SELF, &state_0_final);
   VecSetSizes(state_0_final, systemSize, systemSize);
   VecSetType(state_0_final, VECSEQ);
-
   VecCreate(PETSC_COMM_SELF, &state_0);
   VecSetSizes(state_0, size_Os, size_Os);
   VecSetType(state_0, VECSEQ);
@@ -115,7 +110,6 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   VecSetSizes(st_residual, PETSC_DECIDE, st_systemSize);
   VecSetBlockSize(st_residual, size_Xs);
   VecSetFromOptions(st_residual);
-
   if (reduced->hrom==1){
     VecCreate(PETSC_COMM_SELF, &r_st_residual);
     VecSetSizes(r_st_residual, colRes, colRes);
@@ -162,7 +156,6 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   ks_readSolution(_eqnRd, primalApprox->reduced, primalApprox->self->time.window_i);
 
   array2Vec(_eqnRd, primalApprox->reduced, reducedSpace, primalReducedVec);
-  VecView(primalReducedVec, PETSC_VIEWER_STDOUT_SELF);
   //initial conditions (I don't think I need this
   if (reduced->hrom==0){
     ks_readSolution(_eqn, primalApprox->self, left_t_node);
@@ -289,7 +282,6 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   //---------------------------------------------------------------------------
   ks_printSolution(_eqnRd, primalApprox->reduced,
 		   primalApprox->self->time.window_i);
-
   if (reduced->hrom==0){
     ks_readSolution(_eqn, primalApprox->self, left_t_node);
     array2Vec(_eqn, primalApprox->self, primalApprox->self->space, state_0_final);

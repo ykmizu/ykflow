@@ -6,14 +6,9 @@
 #include <unistd.h>
 //check check it worked
 
-void *yk_createSnapshotResidual(){
-  //This will run through all the reduced order model routines to print out the
-  //the residuals that we want. They will all be printed out to a
-}
-
 Mat * yk_createSnapshotState(yk_PrimalSolver *ykflow, Multiverse *multiquation,
-			    Cluster *primal, Mat *snapshot, int snapshotStep,
-			    Is_it *reduced){
+			     Cluster *primal, Mat *snapshot, int snapshotStep,
+			     Is_it *reduced){
   //------------------------------------//-------------------------------------
   // Variables here                     // Comments section
   //------------------------------------//-------------------------------------
@@ -45,7 +40,7 @@ Mat * yk_createSnapshotState(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   int timeNode0 = primal->self->time.t_0/primal->self->time.dt;
   struct stat sb = {0};
 
-   /* Mat *snapshot_mu = (Mat *) malloc (reduced->numParamSet*sizeof(Mat)); */
+  /* Mat *snapshot_mu = (Mat *) malloc (reduced->numParamSet*sizeof(Mat)); */
   //---------------------------------------------------------------------------
   // Initialization
   //---------------------------------------------------------------------------
@@ -95,13 +90,13 @@ Mat * yk_createSnapshotState(yk_PrimalSolver *ykflow, Multiverse *multiquation,
       array2Data(multiquation->equation, primal->self, state_i);
       //Take away the initial conditions from the states
       for (j=0; j<primal->self->systemSize; j++)
-      	state_i[j]-=state_0[j];
+	state_i[j]-=state_0[j];
       MatGetSize(*snapshot, &row, &col);
 
       index_i = p*(snapshotCount)+i-1;
       //Add to the giant snapshot matrix
       MatSetValues(*snapshot, primal->self->systemSize, temp, 1,
-    		   &index_i, state_i, INSERT_VALUES);
+		   &index_i, state_i, INSERT_VALUES);
       index_i = i-1;
       MatSetValues(snapshot_mu[p], primal->self->systemSize,
 		   temp,
@@ -115,7 +110,7 @@ Mat * yk_createSnapshotState(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   MatAssemblyBegin(*snapshot, MAT_FINAL_ASSEMBLY);
   MatAssemblyEnd(*snapshot, MAT_FINAL_ASSEMBLY);
 
-    /* strcpy(primal->self->id, tempS); */
+  /* strcpy(primal->self->id, tempS); */
   //---------------------------------------------------------------------------
   // Termination
   //---------------------------------------------------------------------------
@@ -339,56 +334,137 @@ void yk_properOrthogonalDecomposeGroup(Mat *snapshot, int numSnapshots,
   }
 }
 
+/* void yk_properOrthogonalDecompose(Mat *snapshot, int systemSize, */
+/* 				  PetscInt *index, */
+/* 				  PetscInt *numSingularValues, */
+/* 				  PetscScalar engyValues, Mat *A){ */
+/*   //------------------------------------//------------------------------------- */
+/*   // Variables here                     // Comments section */
+/*   //------------------------------------//------------------------------------- */
+/*   int i, j;                                //initialization for iteration */
+/*   PetscReal sigma;                      //eigenvalues */
+/*   Vec singular;                         //singular vectors rotation */
+/*   SVD svd;       //create svd object */
+/*   PetscInt nsv; */
+/*   PetscInt nconv; */
+/*   int flag = 0; */
+/*   double denomE = 0; */
+/*   double Etotal = 0; */
+/*   double EtotalPercent = 0; */
+/*   PetscInt count = 0; */
+/*   //--------------------------------------------------------------------------- */
+/*   // Initialization */
+/*   //--------------------------------------------------------------------------- */
+/*   VecCreate(PETSC_COMM_SELF, &singular);//Set up the singular vector, U */
+/*   VecSetSizes(singular, systemSize, systemSize); */
+/*   VecSetType(singular, VECSEQ); */
+/*   //--------------------------------------------------------------------------- */
+/*   // Implementation */
+/*   //--------------------------------------------------------------------------- */
+/*   //--------------------------------------------------------------------------- */
+/*   // Create the Singular Value solver and set various options and solve */
+/*   //--------------------------------------------------------------------------- */
+
+/*   SVDCreate(PETSC_COMM_SELF, &svd); */
+/*   SVDSetOperator(svd, *snapshot); */
+/*   SVDSetFromOptions(svd); */
+/*   SVDSolve(svd); */
+/*   SVDGetDimensions(svd,&nsv,NULL,NULL); */
+/*   SVDGetConverged(svd,&nconv); */
+/*   //--------------------------------------------------------------------------- */
+/*   // If nBasis is undetermined, than calculate witht he energy desire thing */
+/*   //--------------------------------------------------------------------------- */
+/*   if (engyValues != 0 && *numSingularValues == 0){ */
+/*     for (i=0; i<nconv; i++){ */
+/*       SVDGetSingularTriplet(svd, i, &sigma, NULL, NULL); */
+/*       denomE +=sigma*sigma; */
+/*     } */
+/*     while (EtotalPercent < engyValues){ */
+
+/*       SVDGetSingularTriplet(svd, count, &sigma, singular, NULL); */
+/*       Etotal += (sigma*sigma); */
+/*       EtotalPercent = Etotal/denomE; */
+/*       count++; */
+/*     } */
+/*   } */
+/*   //--------------------------------------------------------------------------- */
+/*   // Create Basis Matrix here */
+/*   //--------------------------------------------------------------------------- */
+/*   MatCreate(PETSC_COMM_SELF, A);       //Set up the Matrix for POD */
+/*   MatSetSizes(*A, systemSize, count, systemSize, count); */
+/*   MatSetType(*A, MATSEQDENSE); */
+/*   MatSetUp(*A); */
+/*   for (i=0; i<count; i++){ */
+/*     SVDGetSingularTriplet(svd, i, &sigma, singular, NULL); //extract rotation */
+/*     ks_Vec2MatCol(*A, systemSize, index, i, singular, INSERT_VALUES); */
+/*   } */
+
+/*   MatAssemblyBegin(*A, MAT_FINAL_ASSEMBLY); */
+/*   MatAssemblyEnd(*A, MAT_FINAL_ASSEMBLY); */
+
+/*   //--------------------------------------------------------------------------- */
+/*   // Clean up */
+/*   //--------------------------------------------------------------------------- */
+/*   SVDDestroy(&svd); */
+/*   VecDestroy(&singular); */
+/* } */
 
 void yk_properOrthogonalDecompose(Mat *snapshot, int systemSize,
-				  PetscInt *index,
-				  PetscInt *numSingularValues,
+				  PetscInt *index, PetscInt *numSingularValues,
 				  PetscScalar engyValues, Mat *A){
   //------------------------------------//-------------------------------------
   // Variables here                     // Comments section
   //------------------------------------//-------------------------------------
-  int i, j;                                //initialization for iteration
-  PetscReal sigma;                      //eigenvalues
-  Vec singular;                         //singular vectors rotation
-  SVD svd;       //create svd object
-  PetscInt nsv;
-  PetscInt nconv;
+  int i, j;                             //initialization for iteration
   int flag = 0;
   double denomE = 0;
   double Etotal = 0;
   double EtotalPercent = 0;
+  PetscInt nsv;
+  PetscInt nconv;
   PetscInt count = 0;
+  PetscInt m, n;
+  PetscReal sigma;                      //eigenvalues
+  Vec su;
+  Vec singular;                         //singular vectors rotation
+  Mat snapshotCopy;
+  Mat adjustedSnapshot;
+  SVD svd;                              //create svd object
   //---------------------------------------------------------------------------
   // Initialization
   //---------------------------------------------------------------------------
-  VecCreate(PETSC_COMM_SELF, &singular);//Set up the singular vector, U
-  VecSetSizes(singular, systemSize, systemSize);
-  VecSetType(singular, VECSEQ);
+  MatGetSize(*snapshot, &m, &n);
+  yk_VecCreateSeq(&su, systemSize);
+  //Singular vector U
+  yk_VecCreateSeq(&singular, n);
+  //create a copy of snapshot matrix
+  yk_MatCreateSeqDense(&snapshotCopy, m, n);
   //---------------------------------------------------------------------------
   // Implementation
   //---------------------------------------------------------------------------
+  MatCopy(*snapshot, snapshotCopy, SAME_NONZERO_PATTERN);
+  MatTransposeMatMult(*snapshot, snapshotCopy , MAT_INITIAL_MATRIX,
+		      PETSC_DEFAULT, &adjustedSnapshot);
   //---------------------------------------------------------------------------
   // Create the Singular Value solver and set various options and solve
   //---------------------------------------------------------------------------
-
   SVDCreate(PETSC_COMM_SELF, &svd);
-  SVDSetOperator(svd, *snapshot);
+  SVDSetOperator(svd, adjustedSnapshot);
   SVDSetFromOptions(svd);
   SVDSolve(svd);
   SVDGetDimensions(svd,&nsv,NULL,NULL);
-  SVDGetConverged(svd,&nconv);
+  SVDGetConverged(svd, &nconv);
   //---------------------------------------------------------------------------
   // If nBasis is undetermined, than calculate witht he energy desire thing
   //---------------------------------------------------------------------------
   if (engyValues != 0 && *numSingularValues == 0){
     for (i=0; i<nconv; i++){
       SVDGetSingularTriplet(svd, i, &sigma, NULL, NULL);
-      denomE +=sigma*sigma;
+      denomE+=sigma;
     }
     while (EtotalPercent < engyValues){
-
       SVDGetSingularTriplet(svd, count, &sigma, singular, NULL);
-      Etotal += (sigma*sigma);
+      Etotal +=sigma;
       EtotalPercent = Etotal/denomE;
       count++;
     }
@@ -396,15 +472,14 @@ void yk_properOrthogonalDecompose(Mat *snapshot, int systemSize,
   //---------------------------------------------------------------------------
   // Create Basis Matrix here
   //---------------------------------------------------------------------------
-  MatCreate(PETSC_COMM_SELF, A);       //Set up the Matrix for POD
-  MatSetSizes(*A, systemSize, count, systemSize, count);
-  MatSetType(*A, MATSEQDENSE);
-  MatSetUp(*A);
+  yk_MatCreateSeqDense(A, systemSize, count);
+
   for (i=0; i<count; i++){
     SVDGetSingularTriplet(svd, i, &sigma, singular, NULL); //extract rotation
-    ks_Vec2MatCol(*A, systemSize, index, i, singular, INSERT_VALUES);
+    MatMult(*snapshot, singular, su);
+    VecScale(su, 1.0/sqrt(sigma));
+    ks_Vec2MatCol(*A, systemSize, index, i, su, INSERT_VALUES);
   }
-
   MatAssemblyBegin(*A, MAT_FINAL_ASSEMBLY);
   MatAssemblyEnd(*A, MAT_FINAL_ASSEMBLY);
 
@@ -412,7 +487,10 @@ void yk_properOrthogonalDecompose(Mat *snapshot, int systemSize,
   // Clean up
   //---------------------------------------------------------------------------
   SVDDestroy(&svd);
+  VecDestroy(&su);
   VecDestroy(&singular);
+  MatDestroy(&snapshotCopy);
+  MatDestroy(&adjustedSnapshot);
 }
 
 
@@ -518,10 +596,11 @@ void yk_formatSpaceTimeBasis(Cluster *primal, Mat *subspaceTime,
   //---------------------------------------------------------------------------
   // Initialization
   //---------------------------------------------------------------------------
+  printf("shit\n");
   MatGetSize(subspaceTime[0], &rows, &nBasis);
   n_spaceTimeBasis = nBasis;
   /* MatCreate(PETSC_COMM_SELF, &spaceTime_i[0]); */
-
+  printf("color\n");
 
   rIndex = (PetscInt *) malloc (rows*sizeof(PetscInt));
   for (i=0; i<rows; i++)
@@ -533,7 +612,7 @@ void yk_formatSpaceTimeBasis(Cluster *primal, Mat *subspaceTime,
   nnz = (PetscInt *) malloc (n_rows*sizeof(PetscInt));
 
   //Find the total number rows and colums for the future spaceTime matrix
-
+  printf("pockettttt\n");
   for (i=1; i<reduced->nSubWindows; i++){
     MatGetSize(subspaceTime[i], &rows, &nBasis);
     n_spaceTimeBasis+=nBasis;
@@ -542,7 +621,7 @@ void yk_formatSpaceTimeBasis(Cluster *primal, Mat *subspaceTime,
   for (i=0; i<n_spaceTimeBasis; i++)
     colIndex[i] = i;
   for (i=0; i<reduced->nSubWindows; i++){
-
+    printf("tired\n");
 
     MatGetSize(subspaceTime[i], &rows, &nBasis);
     n_b += nBasis;
@@ -558,11 +637,16 @@ void yk_formatSpaceTimeBasis(Cluster *primal, Mat *subspaceTime,
       MatSeqAIJSetPreallocation(spaceTime_i[j_n], n_b, NULL);
     }
   }
+  printf("heck\n");
+  printf("%d\n", n_rows);
+  printf("%d\n", n_spaceTimeBasis);
   //Now that we have all the information, we can create the petsc MAT object
   MatCreate(PETSC_COMM_SELF, spaceTime);
   MatSetSizes(*spaceTime, n_rows, n_spaceTimeBasis, n_rows, n_spaceTimeBasis);
   MatSetType(*spaceTime, MATSEQAIJ); //Let's make it sparse
   MatSeqAIJSetPreallocation(*spaceTime, NULL, nnz);
+
+  printf("partner\n");
   //---------------------------------------------------------------------------
   // Implementation
   //---------------------------------------------------------------------------
@@ -573,15 +657,26 @@ void yk_formatSpaceTimeBasis(Cluster *primal, Mat *subspaceTime,
     // Prepare and initialize the data and such
     //-------------------------------------------------------------------------
     //Having to call MatSize all the time is so fucking annoying
+    printf("blah\n");
     MatGetSize(subspaceTime[i], &rows, &nBasis);
+    printf("%d %d\n", rows, nBasis);
     st_index = (PetscInt *) malloc (rows*sizeof(PetscInt));
+    printf("cannon\n");
     ex_array = (PetscScalar *) malloc
       (primal->self->systemSize*nBasis*sizeof(PetscScalar));
     //Need to properally allocate since each subwindow won't nec have samebasis
     /* if (i==0){ */
+    printf("%d\n", primal->self->systemSize*nBasis);
     bIndex = (PetscInt *) malloc (nBasis*sizeof(PetscInt));
     st_bIndex = (PetscInt *) malloc (nBasis*sizeof(PetscInt));
-    varray = (PetscScalar *) malloc (nBasis*rows*sizeof(PetscScalar));
+    printf("valuffffff\n");
+    /* varray = (PetscScalar *) malloc (nBasis*rows*sizeof(PetscScalar)); */
+    varray = (PetscScalar *) malloc (nBasis*primal->self->systemSize*sizeof(PetscScalar));
+    if( varray == NULL )
+      {
+	printf("FAILLLLLLL not enough memory \n");
+	/* Malloc failed, deal with it */
+      }
     /* }else if (i > 0 && nBasis!=nBasis_pre){ */
     /*   bIndex = realloc(bIndex, nBasis*sizeof(PetscInt)); */
     /*   st_bIndex = realloc(st_bIndex, nBasis*sizeof(PetscInt)); */
@@ -589,6 +684,7 @@ void yk_formatSpaceTimeBasis(Cluster *primal, Mat *subspaceTime,
     /* } */
     /* printf("fridge\n"); */
     //Fill in all the redidiculous indices shit
+    printf("chocococ\n");
     for (j=0; j<nBasis; j++){
       bIndex[j] = j;
       st_bIndex[j] = b_0+j;
@@ -596,13 +692,14 @@ void yk_formatSpaceTimeBasis(Cluster *primal, Mat *subspaceTime,
     for (j=0; j<rows; j++){
       st_index[j] = i*rows+j;
     }
+    printf("oiiii\n");
     //-------------------------------------------------------------------------
     // Create the giant fuckng matrix
     //-------------------------------------------------------------------------
     //Set the diagonals here
-    MatGetValues(subspaceTime[i], rows, rIndex, nBasis, bIndex, varray);
-    MatSetValues(*spaceTime, rows, st_index, nBasis, st_bIndex, varray,
-		 INSERT_VALUES);
+    /* MatGetValues(subspaceTime[i], rows, rIndex, nBasis, bIndex, varray); */
+    /* MatSetValues(*spaceTime, rows, st_index, nBasis, st_bIndex, varray, */
+    /* 		 INSERT_VALUES); */
    //---- maybe
     for (j=0; j<primal->self->time.count; j++){
       for (k=0; k<primal->self->systemSize; k++)
@@ -629,8 +726,8 @@ void yk_formatSpaceTimeBasis(Cluster *primal, Mat *subspaceTime,
 	for (k=0; k<primal->self->systemSize; k++){
 	  index_i[k]=j*(primal->self->time.count*primal->self->systemSize)+m*primal->self->systemSize+k;
 	}
-	MatSetValues(*spaceTime, primal->self->systemSize, index_i,
-		     nBasis, st_bIndex, varray, INSERT_VALUES);
+	/* MatSetValues(*spaceTime, primal->self->systemSize, index_i, */
+	/* 	     nBasis, st_bIndex, varray, INSERT_VALUES); */
 	MatSetValues(spaceTime_i[j*primal->self->time.count+m],
 		     primal->self->systemSize, primal->self->index, nBasis,
 		     st_bIndex,
@@ -642,6 +739,7 @@ void yk_formatSpaceTimeBasis(Cluster *primal, Mat *subspaceTime,
       MatAssemblyBegin(spaceTime_i[i*primal->self->time.count+j], MAT_FINAL_ASSEMBLY);
       MatAssemblyEnd(spaceTime_i[i*primal->self->time.count+j], MAT_FINAL_ASSEMBLY);
     }
+    printf("hrm\n");
   /* printf("touching touching\n"); */
     /* b_0+=nBasis; */
     nBasis_pre = nBasis;
@@ -653,12 +751,13 @@ void yk_formatSpaceTimeBasis(Cluster *primal, Mat *subspaceTime,
     free(bIndex);
     free(varray);
   }
-  MatAssemblyBegin(*spaceTime, MAT_FINAL_ASSEMBLY);
-  MatAssemblyEnd(*spaceTime,MAT_FINAL_ASSEMBLY);
+  //Full space time basis which we are not formulating here boys
+  /* MatAssemblyBegin(*spaceTime, MAT_FINAL_ASSEMBLY); */
+  /* MatAssemblyEnd(*spaceTime,MAT_FINAL_ASSEMBLY); */
   /* colIndex = (PetscInt *) malloc (sizeof(PetscInt)); */
   /* for (i=0; i<n_spaceTimeBasis; i++) */
   /*   colIndex[i] = i; */
-
+  printf("over\n");
   free(spaceindex);
   free(colIndex);
   free(index_i);

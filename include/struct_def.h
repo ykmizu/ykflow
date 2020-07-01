@@ -167,7 +167,6 @@ typedef struct{
   //----
   intArray reducedTime;
   intArray reducedTime_Os;
-  Vec init;
   PetscInt nBasisFuncs_w_i;
   PetscInt *nBasisTime_w_mu;
   int nBasisFuncsRJ;
@@ -211,6 +210,7 @@ typedef struct{
   PetscInt *final_Res_nBasis_st;
   int runFomOnly;
   int runHrom;
+  Vec init;
 }Is_it;
 
 

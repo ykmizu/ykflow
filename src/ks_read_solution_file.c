@@ -78,13 +78,15 @@ void ks_readSolution(Universe eqn, Galaxy* U, int node){
   int i;                //initialization for iteration
   FILE* solutionFile;
   char outputFile[1000];
-  char buffer[1000];
+  //char buffer[10000];
   int count = 0;
   char *current_line;
   char *lines = NULL;
   char cwd[1000];
   char *c_lines = NULL;
   int length;
+  char *buffer = (char *) malloc (eqn.numStates*23*sizeof(char));
+  /* printf("%d\n", eqn.numStates*22); */
   U->time.node = node;
   sprintf(outputFile, "%s_%d.dat", U->id, node);
   /* printf("%s\n", outputFile); */
@@ -101,7 +103,7 @@ void ks_readSolution(Universe eqn, Galaxy* U, int node){
     exit(EXIT_FAILURE);
   }else{
 
-    while ((current_line = fgets(buffer, sizeof(buffer), solutionFile))){
+    while ((current_line = fgets(buffer, eqn.numStates*23, solutionFile))){
       if (current_line[0] != '\n'){
 	lines = strtok(current_line, " ");
 	//printf("die die die %s\n", lines);
@@ -118,6 +120,7 @@ void ks_readSolution(Universe eqn, Galaxy* U, int node){
     }
   }
   fclose(solutionFile);
+  free(buffer);
 }
 
 void yk_readLSSInitialCon(char *filename, double R[]){
