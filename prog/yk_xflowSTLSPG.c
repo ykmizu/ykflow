@@ -1,7 +1,7 @@
 
 //THIS IS THE RIGHT ONE FEB 6
 
-
+#include <Python.h>
 #include "yk_XFlow.h"
 #include <math.h>
 #include <stdio.h>
@@ -403,6 +403,7 @@ void yk_matrix2D2MatGroup(xf_All *All, xf_JacobianMatrix *dRdU, Galaxy *pObj,
   int floorElem = 0;
   int globalElem, localElem;
   int *getMeshIndex = createMeshMap(&pObj->space);
+  double value;
   int nBasis = pObj->basis.nodes;
   real *A;
   Mesh _meshOfInterest;                 // Mesh of interest depending of ROM
@@ -475,10 +476,16 @@ void yk_matrix2D2MatGroup(xf_All *All, xf_JacobianMatrix *dRdU, Galaxy *pObj,
       for (m=0; m<nn; m++)
         for (n=0; n<nnN; n++)
           for (p=0; p<sr*sr; p++)
-            if (A[(m*nnN+n)*sr*sr+p]!= 0.0)
-	      MatSetValue(matObj, row+m*sr+(p/sr), col+n*sr+(p%sr),
-                          A[(m*nnN+n)*sr*sr+p], INSERT_VALUES);
-
+            if (A[(m*nnN+n)*sr*sr+p]!= 0.0){
+	      if(!isnan(A[(m*nnN+n)*sr*sr+p])) {
+		MatSetValue(matObj, row+m*sr+(p/sr), col+n*sr+(p%sr),
+			    A[(m*nnN+n)*sr*sr+p], INSERT_VALUES);
+	      }else{
+		value = 0.0;
+		MatSetValue(matObj, row+m*sr+(p/sr), col+n*sr+(p%sr),
+                            value, INSERT_VALUES);
+	      }
+	    }
 
     }
   }
@@ -531,13 +538,16 @@ void yk_vector2Vec(xf_All *All, xf_Vector *A, Galaxy *pObj, Vec vecObj,
     if (A->GenArray[i].rValue != NULL){
       for (k=0; k<rOrd; k++){
         value = A->GenArray[i].rValue[localElem][k];
-
-        VecSetValue(vecObj, j*rOrd+k, value, INSERT_VALUES);
-      }
-    } //else if (A->GenArray[i].iValue != NULL) int value
+	if (!isnan(value)) {
+	  VecSetValue(vecObj, j*rOrd+k, value, INSERT_VALUES);
+	}else{
+	  value = 0.0;
+	  VecSetValue(vecObj, j*rOrd+k, value, INSERT_VALUES);
+	}
+      } //else if (A->GenArray[i].iValue != NULL) int value
+    }
   }
 }
-
  //-----------------------------------------------------------------------------
 // Convert vector xflow group format to Vec Petsc format
 //-----------------------------------------------------------------------------
@@ -573,8 +583,8 @@ void yk_add2VectorGroupScalar(xf_VectorGroup *A, double randomV){
 void yk_fomBuffer(yk_PrimalSolver *ykflow, Universe equation, Is_it *reduced, \
 		  int p, char *nameOfDir){
 
-  int mach= reduced->paramMeshGrid[p*reduced->numParams]*100;
-  int alfa = reduced->paramMeshGrid[p*reduced->numParams+1]*100;
+  int mach= reduced->paramMeshGrid[p*reduced->numParams]*1000;
+  int alfa = round(reduced->paramMeshGrid[p*reduced->numParams+1]*100);
   int reynolds = reduced->paramMeshGrid[p*reduced->numParams+2];
   sprintf(nameOfDir, "%s/%s_M_%d_A_%d_Re_%d", ykflow->path, equation.nameEqn,
 	  mach,  alfa, reynolds);
@@ -697,6 +707,7 @@ int yk_getOffDiagonalJacobiansGroup(yk_PrimalSolver *ykflow, Galaxy *primal,
   /* if (*Jacobian[i] != NULL) */
   yk_matrix2D2MatGroup(xflow->All, Mass, primal, *Jacobian, reduced);
   xf_Call(xf_DestroySolverData(SolverData));
+
   return ierr;
 }
 
@@ -761,7 +772,7 @@ void yk_xflow_totalResidual(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   xf_VectorGroup *RG = NULL;
   enum xfe_TimeSchemeType TimeScheme;
   xf_JacobianMatrix *R_U;
-  int initalNode = (int)(state->time.t_0/state->time.dt);
+  int initalNode = round(state->time.t_0/state->time.dt);
   int iTime = state->time.node-initalNode-1;
   double resTime = state->time.node*state->time.dt;
   yk_Xflow *xflow = (yk_Xflow *) ykflow->solver;
@@ -894,7 +905,7 @@ void yk_xfData2Dat(Galaxy *gObj, xf_VectorGroup *UG, char *jobFile){
   char outFile[xf_MAXSTRLEN];
   char numFilesString[xf_MAXSTRLEN];
   char dataString[xf_MAXSTRLEN];
-  int leftNode = gObj->time.t_0/gObj->time.dt+1;
+  int leftNode = round(gObj->time.t_0/gObj->time.dt)+1;
   if (leftNode == 1){
     leftNode = 0;
   }
@@ -1328,8 +1339,8 @@ void yk_print2xflowTxt(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   char temp[xf_MAXSTRLEN];
   char OutputFile[xf_MAXSTRLEN];
   xf_Data *D;
-  int leftNode = sol->time.t_0/sol->time.dt;
-  int rightNode = sol->time.t_f/sol->time.dt;
+  int leftNode = round(sol->time.t_0/sol->time.dt);
+  int rightNode = round(sol->time.t_f/sol->time.dt);
 
   //---------------------------------------------------------------------------
   //
@@ -1553,6 +1564,7 @@ void yk_initializeYkflow(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   strcpy(ykflow->path, s);
   totstbasis = reduced->nTimeSegs*reduced->nSubWindows;
 
+
   reduced->final_nBasis_s = (PetscInt *) malloc (totstbasis*sizeof(PetscInt));
   reduced->final_nBasis_st = (PetscInt *) malloc (totstbasis*sizeof(PetscInt));
   reduced->final_Res_nBasis_s = (PetscInt *) malloc (reduced->nTimeSegs*
@@ -1676,11 +1688,11 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   yk_MatCreateSeqDense(&fomMat, sysSize, time);
   yk_MatCreateSeqDense(&romMat, sysSize, time);
   yk_MatCreateSeqDense(&resRomMat, sysSize, time);
-  if (reduced->runHrom == 1){
-    yk_MatCreateSeqDense(&hromMat, sysSize, time);
-    yk_VecCreateSeq(&hromVec, sysSize);
-    yk_MatCreateSeqDense(&resHromMat, sysSize, time);
-  }
+  /* if (reduced->runHrom == 1){ */
+  /*   yk_MatCreateSeqDense(&hromMat, sysSize, time); */
+  /*   yk_VecCreateSeq(&hromVec, sysSize); */
+  /*   yk_MatCreateSeqDense(&resHromMat, sysSize, time); */
+  /* } */
   //---------------------------------------------------------------------------
   // Space-Time Reduced-Order Modeling
   //---------------------------------------------------------------------------
@@ -1701,69 +1713,69 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
     //-------------------------------------------------------------------------
     // Hyper-Reduced Order Modeling
     //-------------------------------------------------------------------------
-    if (reduced->runHrom == 1){
-      yk_textBoldBorder("Windowed ST Gauss Newton w/ Approx Tensors");
-      yk_textBorder("1. Create the hyper reduced order model");
-      yk_createHyperReducedOrderModel_ST(ykflow, multiquation, fom, rom,reduced);
-      yk_textBorder("2. Find the hyper reduced order model");
-      yk_runHyperReducedOrderModel_ST(ykflow, multiquation, fom, hrom,
-				      reduced->h_t, reduced);
-    }
+    /* if (reduced->runHrom == 1){ */
+    /*   yk_textBoldBorder("Windowed ST Gauss Newton w/ Approx Tensors"); */
+    /*   yk_textBorder("1. Create the hyper reduced order model"); */
+    /*   yk_createHyperReducedOrderModel_ST(ykflow, multiquation, fom, rom,reduced); */
+    /*   yk_textBorder("2. Find the hyper reduced order model"); */
+    /*   yk_runHyperReducedOrderModel_ST(ykflow, multiquation, fom, hrom, */
+    /* 				      reduced->h_t, reduced); */
+    /* } */
     //-------------------------------------------------------------------------
     //Post process here
     //-------------------------------------------------------------------------
     reduced->hrom = 0;
-    if (i==reduced->nTimeSegs-1){
-      for (j=0; j<nPerWindow; j++){
-    	j_i = i*nPerWindow+j;
-	//STATE
-    	ks_readSolution(multiquation->equation, fom->self, j_i+1);
-    	ks_readSolution(multiquation->equation, rom->self, j_i+1);
+    /* if (i==reduced->nTimeSegs-1){ */
+    for (j=0; j<nPerWindow; j++){
+      j_i = i*nPerWindow+j;
+      //STATE
+      ks_readSolution(multiquation->equation, fom->self, j_i+1);
+      ks_readSolution(multiquation->equation, rom->self, j_i+1);
 
-    	array2Vec(multiquation->equation, fom->self, fom->self->space, fomVec);
-	array2Vec(multiquation->equation, rom->self, fom->self->space, romVec);
-	ks_Vec2MatCol(fomMat, sysSize, fom->self->index, j_i, fomVec,
-		      INSERT_VALUES);
-    	ks_Vec2MatCol(romMat, sysSize, fom->self->index, j_i, romVec,
-		      INSERT_VALUES);
+      array2Vec(multiquation->equation, fom->self, fom->self->space, fomVec);
+      array2Vec(multiquation->equation, rom->self, fom->self->space, romVec);
+      ks_Vec2MatCol(fomMat, sysSize, fom->self->index, j_i, fomVec,
+		    INSERT_VALUES);
+      ks_Vec2MatCol(romMat, sysSize, fom->self->index, j_i, romVec,
+		    INSERT_VALUES);
 
-	rom->self->time.node = j_i+1;
+      rom->self->time.node = j_i+1;
 
-	yk_xflow_totalResidual(ykflow, multiquation, rom->self, romVec,
-			       NULL, reduced, 0);
-	ks_Vec2MatCol(resRomMat, sysSize, fom->self->index, j_i, romVec,
-		      INSERT_VALUES);
+      yk_xflow_totalResidual(ykflow, multiquation, rom->self, romVec,
+			     NULL, reduced, 0);
+      ks_Vec2MatCol(resRomMat, sysSize, fom->self->index, j_i, romVec,
+		    INSERT_VALUES);
 
-    	if (reduced->runHrom==1){
-	  ks_readSolution(multiquation->equation, hrom->stateFull, j_i+1);
-	  array2Vec(multiquation->equation, hrom->stateFull, fom->self->space,
-		    hromVec);
+    /* 	if (reduced->runHrom==1){ */
+    /* 	  ks_readSolution(multiquation->equation, hrom->stateFull, j_i+1); */
+    /* 	  array2Vec(multiquation->equation, hrom->stateFull, fom->self->space, */
+    /* 		    hromVec); */
 
-	  ks_Vec2MatCol(hromMat, sysSize, fom->self->index, j_i, hromVec,
-			INSERT_VALUES);
-	  //RESIDUAL
-	  hrom->stateFull->time.node = j_i+1;
+    /* 	  ks_Vec2MatCol(hromMat, sysSize, fom->self->index, j_i, hromVec, */
+    /* 			INSERT_VALUES); */
+    /* 	  //RESIDUAL */
+    /* 	  hrom->stateFull->time.node = j_i+1; */
 
 
-	  yk_xflow_totalResidual(ykflow, multiquation, hrom->stateFull, hromVec,
-				 NULL, reduced, 0);
-	  ks_Vec2MatCol(resHromMat, sysSize, fom->self->index, j_i, hromVec,
-			INSERT_VALUES);
-	}
-      }
+    /* 	  yk_xflow_totalResidual(ykflow, multiquation, hrom->stateFull, hromVec, */
+    /* 				 NULL, reduced, 0); */
+    /* 	  ks_Vec2MatCol(resHromMat, sysSize, fom->self->index, j_i, hromVec, */
+    /* 			INSERT_VALUES); */
+    /* 	} */
     }
+
     yk_textBorder("Postprocess Data");
     yk_print2xflowTxt(ykflow, multiquation, rom->self);
-    if (reduced->runHrom==1)
-      yk_print2xflowTxt(ykflow, multiquation, hrom->stateFull);
+    /* if (reduced->runHrom==1) */
+    /*   yk_print2xflowTxt(ykflow, multiquation, hrom->stateFull); */
     //-------------------------------------------------------------------------
     // Destroy everything
     //-------------------------------------------------------------------------
     yk_destroyReducedOrderModel_ST(ykflow, multiquation, fom, rom, reduced);
-    if (reduced->runHrom==1)
-      yk_destroyHyperReducedOrderModel_ST(ykflow, multiquation,fom,hrom,reduced);
-    for (j=0; j<xflow->All->Mesh->nElemGroup; j++)
-      xf_Release((void **) xflow->All->Mesh->ElemGroup[j].sElem);
+    /* if (reduced->runHrom==1) */
+    /*   yk_destroyHyperReducedOrderModel_ST(ykflow, multiquation,fom,hrom,reduced); */
+    /* for (j=0; j<xflow->All->Mesh->nElemGroup; j++) */
+  /*     xf_Release((void **) xflow->All->Mesh->ElemGroup[j].sElem); */
   }
 
 
@@ -1785,24 +1797,23 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
 
   MatNorm(resRomMat, NORM_FROBENIUS, &reduced->resNormROM);
 
+
   reduced->relnormROM = normROM/normFOM;
+  printf("%g\n", reduced->relnormROM);
+  /* if (reduced->runHrom == 1){ */
+  /*   MatAssemblyBegin(hromMat, MAT_FINAL_ASSEMBLY); */
+  /*   MatAssemblyEnd(hromMat, MAT_FINAL_ASSEMBLY); */
 
-  if (reduced->runHrom == 1){
-    MatAssemblyBegin(hromMat, MAT_FINAL_ASSEMBLY);
-    MatAssemblyEnd(hromMat, MAT_FINAL_ASSEMBLY);
+  /*   MatAssemblyBegin(resHromMat, MAT_FINAL_ASSEMBLY); */
+  /*   MatAssemblyEnd(resHromMat, MAT_FINAL_ASSEMBLY); */
+  /*   MatAXPY(hromMat, -1, fomMat, SAME_NONZERO_PATTERN); */
+  /*   MatNorm(hromMat, NORM_FROBENIUS, &normHROM); */
+  /*   reduced->relnormHROM = normHROM/normFOM; */
+  /*   MatNorm(resHromMat, NORM_FROBENIUS, &reduced->resNormHROM); */
 
-    MatAssemblyBegin(resHromMat, MAT_FINAL_ASSEMBLY);
-    MatAssemblyEnd(resHromMat, MAT_FINAL_ASSEMBLY);
-    MatAXPY(hromMat, -1, fomMat, SAME_NONZERO_PATTERN);
-    MatNorm(hromMat, NORM_FROBENIUS, &normHROM);
-    reduced->relnormHROM = normHROM/normFOM;
-    MatNorm(resHromMat, NORM_FROBENIUS, &reduced->resNormHROM);
-
-  }
+  /* } */
 
   for (i=reduced->nSims-5; i<reduced->nSims; i++){
-    /* reduced->r_t[i]/=fom->cpuTime; */
-    /* reduced->h_t[i]/=fom->cpuTime; */
     reduced->aveR_t+=reduced->r_t[i];
     if (reduced->runHrom==1)
       reduced->aveH_t+=reduced->h_t[i];
@@ -1810,25 +1821,25 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
 
 
   reduced->aveR_t/=5.0;
-  if (reduced->runHrom ==1)
+  printf("Average Time fo find ROM: %g\n", reduced->aveR_t);
+
+  if (reduced->runHrom ==1){
     reduced->aveH_t/=5.0;
-  /* printf("Relative Average Time fo find ROM: %g\n", reduced->aveR_t */
-  /* 	 /fom->cpuTime); */
-  /* printf("Relative Average Time fo find ROM: %g\n", reduced->aveH_t/ */
-  /* 	 fom->cpuTime); */
+    printf("Average Time fo find ROM: %g\n", reduced->aveH_t);
+  }
 
   MatDestroy(&fomMat);
   MatDestroy(&romMat);
   MatDestroy(&resRomMat);
   VecDestroy(&fomVec);
   VecDestroy(&romVec);
-  if (reduced->hrom == 1){
-    VecDestroy(&hromVec);
-    MatDestroy(&hromMat);
+  /* if (reduced->hrom == 1){ */
+  /*   VecDestroy(&hromVec); */
+  /*   MatDestroy(&hromMat); */
 
-    MatDestroy(&resHromMat);
+  /*   MatDestroy(&resHromMat); */
 
-  }
+  /* } */
 }
 
 void yk_write2ExcelFile(Cluster *primal, Is_it *reduced){
@@ -1986,14 +1997,6 @@ void yk_write2ExcelFile(Cluster *primal, Is_it *reduced){
   }
   workbook_close(workbook);
 
-  free(reduced->r_t);
-  free(reduced->h_t);
-  free(reduced->final_nBasis_s);
-  free(reduced->final_nBasis_t);
-  free(reduced->final_nBasis_st);
-  free(reduced->final_Res_nBasis_s);
-  free(reduced->final_Res_nBasis_t);
-  free(reduced->final_Res_nBasis_st);
 
 }
 
@@ -2018,7 +2021,9 @@ int main(int argc, char** argv) {
   //---------------------------------------------------------------------------
   // Intialize everything related to the xflow stuff
   //---------------------------------------------------------------------------
+
   SlepcInitialize(&argc, &argv, NULL, NULL);
+  /* Py_Initialize(); */
   PetscViewerPushFormat(PETSC_VIEWER_STDOUT_SELF, PETSC_VIEWER_ASCII_MATLAB);
 
   // initialize key-value
@@ -2028,38 +2033,48 @@ int main(int argc, char** argv) {
   ierr = xf_ParseArg(ArgIn, argc, argv, xflow->KeyValueArg);
   if (ierr == xf_FORCE_QUIT) return xf_OK;
   if (ierr != xf_OK) return xf_Error(ierr);
-  //---------------------------------------------------------------------------
-  // Initialization on ykflow
-  //---------------------------------------------------------------------------
+ /*  //--------------------------------------------------------------------------- */
+ /*  // Initialization on ykflow */
+ /*  //--------------------------------------------------------------------------- */
   yk_initializeYkflow(ykflow, multiquation, fom, reduced);
- //---------------------------------------------------------------------------
-  // Run the Forward Order Model (FOM) on xflow
-  //---------------------------------------------------------------------------
+ /* //--------------------------------------------------------------------------- */
+ /*  // Run the Forward Order Model (FOM) on xflow */
+ /*  //--------------------------------------------------------------------------- */
   yk_forwardSimulation(xflow, fom);
-  //---------------------------------------------------------------------------
-  // Run Model Reduction Routines/ WST-LSPG
-  //---------------------------------------------------------------------------
+ /*  //--------------------------------------------------------------------------- */
+ /*  // Run Model Reduction Routines/ WST-LSPG */
+ /*  //--------------------------------------------------------------------------- */
   if (reduced->runFomOnly == 0){
     yk_RunErrorEstChaos(ykflow, multiquation, fom, rom, hrom, argv, reduced);
-    //-------------------------------------------------------------------------
-    // PostProcess everything and save data
-    //-------------------------------------------------------------------------
+ /*    //------------------------------------------------------------------------- */
+ /*    // PostProcess everything and save data */
+ /*    //------------------------------------------------------------------------- */
     yk_write2ExcelFile(fom, reduced);
   }
-  //---------------------------------------------------------------------------
-  // Destroy everything
-  //---------------------------------------------------------------------------
-  printf("CPU TIME\n");
-  printf("%0.16e\n", fom->cpuTime);
+ /*  //--------------------------------------------------------------------------- */
+ /*  // Destroy everything */
+ /*  //--------------------------------------------------------------------------- */
+ /*  /\* printf("CPU TIME\n"); *\/ */
+ /*  /\* printf("%0.16e\n", fom->cpuTime); *\/ */
+ /*  /\* Py_Finalize(); *\/ */
 
+  xf_Call(xf_DestroyTimeHistData(xflow->TimeHistData));
   destroySystem(multiquation->equation, fom->self);
   free(fom->self->index);
   free(fom->self);
-  xf_Call(xf_DestroyTimeHistData(xflow->TimeHistData));
   xf_CloseEqnSetLibrary(&xflow->All);
   xf_Call(xf_DestroyAll(xflow->All));
 
   xf_Call(xf_DestroyKeyValue(xflow->KeyValueArg));
+  free(reduced->r_t);
+  free(reduced->h_t);
+  free(reduced->final_nBasis_s);
+  free(reduced->final_nBasis_t);
+  free(reduced->final_nBasis_st);
+  free(reduced->final_Res_nBasis_s);
+  free(reduced->final_Res_nBasis_t);
+  free(reduced->final_Res_nBasis_st);
+
   free(reduced->win_i);
   free(reduced->params);
   free(reduced->paramsL);
@@ -2075,7 +2090,7 @@ int main(int argc, char** argv) {
 
   SlepcFinalize();
 
-  /* return 0; */
+  return 0;
 
 }
 

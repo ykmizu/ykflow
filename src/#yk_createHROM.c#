@@ -1,4 +1,4 @@
-
+1;95;0cmacs y
 #include "yk_createHROM.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -446,7 +446,7 @@ void yk_runReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   // Find the initial conditions for the approximated states and print
   //---------------------------------------------------------------------------
 
-  leftTimeNode = round(primal->self->time.t_0/primal->self->time.dt);
+  leftTimeNode = primal->self->time.t_0/primal->self->time.dt;
   if (leftTimeNode == 0){
     ks_readSolution(*_eqnFull, primal->self, 0);
     ks_copySolutions(*_eqnFull, primal->self, primalApprox->self);

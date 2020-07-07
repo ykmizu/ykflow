@@ -37,7 +37,7 @@ Mat * yk_createSnapshotState(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   }
   char tempS[1000];
   PetscMalloc1(reduced->numParamSet, &snapshot_mu);
-  int timeNode0 = primal->self->time.t_0/primal->self->time.dt;
+  int timeNode0 = round(primal->self->time.t_0/primal->self->time.dt);
   struct stat sb = {0};
 
   /* Mat *snapshot_mu = (Mat *) malloc (reduced->numParamSet*sizeof(Mat)); */

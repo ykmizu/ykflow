@@ -9,7 +9,8 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   //------------------------------------//-------------------------------------
   int i, j;                             //initialization for iteration
   int t_i;
-  int alfa = 1, flag = 0, st_systemSize;
+  double alfa = 1.0;
+  int flag = 0, st_systemSize;
   int basisNodes =primalApprox->self->basis.nodes;
   int eqnStates = multiquation->equation.numStates;
   int elemSize = eqnStates*basisNodes;
@@ -57,8 +58,10 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   // Initialization
   //---------------------------------------------------------------------------
   MatGetSize(reduced->ST_rOBState, &rowB, &basis);
-  left_t_node = primalApprox->self->time.t_0/dt;
-  right_t_node = primalApprox->self->time.t_f/dt;
+  left_t_node = round(primalApprox->self->time.t_0/dt);
+  right_t_node = round(primalApprox->self->time.t_f/dt);
+  printf("%g\n", primalApprox->self->time.t_0/dt);
+  printf("%g\n", primalApprox->self->time.t_f/dt);
   if (reduced->hrom==0){
     ST_rOBState = reduced->ST_rOBState;
     ST_rOBState_i = reduced->ST_rOBState_i;
@@ -185,10 +188,10 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
       i = left_t_node+primalApprox->self->time.time_Os.array[t_i]+1;
       local_i = primalApprox->self->time.time_Os.array[t_i]+1;
       primalApprox->self->time.node = i;
+      printf("%d\n", i-1);
       MatMultAdd(ST_rOBState_i[local_i-1], primalReducedVec, state_0,
                  primalApproxVec_i);
       vec2Array(_eqn, primalApprox->self, mesh_Os, primalApproxVec_i);
-      VecNorm(primalApproxVec_i, NORM_2, &test);
       ks_printSolution(_eqn, primalApprox->self, i);
     }
     //-------------------------------------------------------------------------
@@ -294,8 +297,11 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   //---------------------------------------------------------------------------
   // Printf
   //---------------------------------------------------------------------------
+  printf("%d %d\n", left_t_node+1, right_t_node+1);
   for (i=left_t_node+1; i<right_t_node+1; i++){
     local_i = i-left_t_node;
+    printf("ending\n");
+    printf("%d %d\n", i, local_i-1);
     MatMultAdd(reduced->ST_rOBState_i[local_i-1], primalReducedVec,
   	       state_0_final, primalApproxVec_i_final);
     if (reduced->hrom==1){
