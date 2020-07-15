@@ -114,6 +114,7 @@ typedef struct { //the command module
   PetscInt *index;
   int runFom;
   int runHrom;
+  double *J;
 }Galaxy; //Galaxies
 
 
@@ -211,6 +212,9 @@ typedef struct{
   int runFomOnly;
   int runHrom;
   Vec init;
+  int JFlag;
+  double normDrag;
+  double normLift;
 }Is_it;
 
 
