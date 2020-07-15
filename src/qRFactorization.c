@@ -17,6 +17,8 @@ void linearLeastSquares(Mat A, Vec b, Vec x){
   PetscScalar RHS;
   Mat C;
   Vec y;
+  Vec cc;
+  PetscReal val;
   //----------------------------------------------------------------------------
   // Initialization
   //----------------------------------------------------------------------------
@@ -30,6 +32,8 @@ void linearLeastSquares(Mat A, Vec b, Vec x){
   //----------------------------------------------------------------------------
   MatTransposeMatMult(A,A ,MAT_INITIAL_MATRIX, PETSC_DEFAULT, &C);
   MatMultTranspose(A, b, rightHS);
+  /* VecNorm(rightHS, NORM_2, &val); */
+  /* printf("lmult J,R = %0.16e\n", val); */
   /* printf("next best thing\n"); */
   /* qRFactorization(A, Q, R); //QR decomposition */
   /* printf("sketch\n"); */

@@ -33,7 +33,7 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   PetscInt basis;
   PetscInt *rowIndex, *index_Xs, *nSTBasisIndex;
   PetscScalar *residual_i, *cc;
-  PetscScalar normp=1.0;
+  PetscScalar normG=0;
   PetscReal val;
   Vec p;
   Vec state_0, state_0_final;
@@ -54,14 +54,13 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   PetscInt mm, nn;
   PetscScalar test;
   char residualSnapshot[1000];
+  Vec gradient;
   //---------------------------------------------------------------------------
   // Initialization
   //---------------------------------------------------------------------------
   MatGetSize(reduced->ST_rOBState, &rowB, &basis);
   left_t_node = round(primalApprox->self->time.t_0/dt);
   right_t_node = round(primalApprox->self->time.t_f/dt);
-  printf("%g\n", primalApprox->self->time.t_0/dt);
-  printf("%g\n", primalApprox->self->time.t_f/dt);
   if (reduced->hrom==0){
     ST_rOBState = reduced->ST_rOBState;
     ST_rOBState_i = reduced->ST_rOBState_i;
@@ -119,6 +118,11 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
     VecSetType(r_st_residual, VECSEQ);
   }
 
+  VecCreate(PETSC_COMM_SELF, &gradient);
+  VecSetSizes(gradient, basis, basis);
+  VecSetType(gradient, VECSEQ);
+
+
   VecCreate(PETSC_COMM_SELF, &primalApproxVec_i);
   VecSetSizes(primalApproxVec_i, size_Os, size_Os);
   VecSetType(primalApproxVec_i, VECSEQ);
@@ -173,7 +177,7 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   MatSeqAIJSetPreallocation(coefMat, elemSize*elemSize, NULL);
   ykflow->findMassCoefBDF(ykflow, primalApprox->self, &coefMat, reduced);
   MatDuplicate(coefMat, MAT_COPY_VALUES, &coefMat1);
-  MatScale(coefMat1, -2/0.1);
+  MatScale(coefMat1, -2.0/0.1);
   MatDuplicate(coefMat, MAT_COPY_VALUES, &coefMat2);
   MatScale(coefMat2, 0.5/0.1);
   ptr_dRdU = &dRdU;
@@ -188,7 +192,6 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
       i = left_t_node+primalApprox->self->time.time_Os.array[t_i]+1;
       local_i = primalApprox->self->time.time_Os.array[t_i]+1;
       primalApprox->self->time.node = i;
-      printf("%d\n", i-1);
       MatMultAdd(ST_rOBState_i[local_i-1], primalReducedVec, state_0,
                  primalApproxVec_i);
       vec2Array(_eqn, primalApprox->self, mesh_Os, primalApproxVec_i);
@@ -250,27 +253,31 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
     	fprintf(residualSnapshotFile, " %0.20e", snapshotsRJ[j]);
       fprintf(residualSnapshotFile, "\n");
     }
-    if (normp >pow(10,-6)){
-      VecScale(st_residual, -1);
+    VecScale(st_residual, -1);
+    //Calcualte the gradient J^Tr to see the convergence values
+    if (reduced->hrom==1){
+      MatMatMult(reduced->A, dRdU, MAT_INITIAL_MATRIX, PETSC_DEFAULT, &r_dRdU);
+      MatMult(reduced->A, st_residual, r_st_residual);
+      MatMultTranspose(r_dRdU, r_st_residual, gradient);
+    }else if (reduced->hrom==0){
+      MatMultTranspose(dRdU, st_residual, gradient);
+    }
+    VecNorm(gradient, NORM_2, &normG);
+    printf("Gauss-Newton gradient Iteration  %d, Error %0.16e\n", gaussCount, normG);
+    gaussCount++;
+    if (normG > pow(10,-8)){
       //---------------------------------------------------------------------
       // Least Squares Solve for the Direction p
       //-----------------------------------------------------------------------
-      if (reduced->hrom==1){
-	MatMatMult(reduced->A, dRdU, MAT_INITIAL_MATRIX, PETSC_DEFAULT, &r_dRdU);
-	MatMult(reduced->A, st_residual, r_st_residual);
+      if (reduced->hrom ==1)
 	linearLeastSquares(r_dRdU, r_st_residual, p);
-      }else if (reduced->hrom==0)
+      else
 	linearLeastSquares(dRdU, st_residual, p);
       //-----------------------------------------------------------------------
       // Perform line search or set \alpha to 1
       //-----------------------------------------------------------------------
-      gaussCount++;
-      VecNorm(p, 2, &normp);
-      printf("Gauss-Newton's Iteration %d, Error %0.16e\n", gaussCount, normp);
-      /* flag = normp <pow(10, -6) ? 1:  0; */
       VecAXPY(primalReducedVec, alfa, p);
       vec2Array(_eqnRd, primalApprox->reduced,  reducedSpace, primalReducedVec);
-
 
     }else
       flag = 1;
@@ -297,11 +304,8 @@ void yk_gaussNewtonSolve_ST(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   //---------------------------------------------------------------------------
   // Printf
   //---------------------------------------------------------------------------
-  printf("%d %d\n", left_t_node+1, right_t_node+1);
   for (i=left_t_node+1; i<right_t_node+1; i++){
     local_i = i-left_t_node;
-    printf("ending\n");
-    printf("%d %d\n", i, local_i-1);
     MatMultAdd(reduced->ST_rOBState_i[local_i-1], primalReducedVec,
   	       state_0_final, primalApproxVec_i_final);
     if (reduced->hrom==1){

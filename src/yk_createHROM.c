@@ -21,166 +21,86 @@ void yk_predictInitialCondition(Cluster *primal, Mat *snapshot,Is_it *reduced){
   //This function will be called for each subwindow.
   int i, j, k;
   int fd;
-  char outputS[500];
-  PetscInt systemSize = primal->self->systemSize;
-  PetscInt snapshotCount = primal->self->time.count;
-  PetscInt totalSize = systemSize*snapshotCount*reduced->nSubWindows;
-  PetscInt *sub_index = (PetscInt *) malloc (snapshotCount*sizeof(PetscInt));
-  PetscInt *total_index = (PetscInt *) malloc (systemSize*snapshotCount*
-					       sizeof(PetscInt));
-  Mat C;
-  Mat total;
-  Mat model;
-  PetscViewer viewer, reader;
-  PetscInt m,n, sz;
-  PetscScalar *avec;
+  char outputS[100];
   FILE* File;
-  Mat model_k;
-  PetscInt we = 0;
-  PetscInt one = 1;
-  MatGetSize(reduced->ST_rOBState_i[0], &m, &n);
-  PetscScalar *model_i = (PetscScalar *) malloc (n*reduced->numParamSet*sizeof(PetscScalar));
-
-  PetscInt row_ik;
-  PetscInt *value = (PetscInt *) malloc (systemSize*sizeof(PetscInt));
-  PetscInt *pindex = (PetscInt *) malloc (reduced->numParamSet*sizeof(PetscInt));
-  for (i=0; i<reduced->numParamSet; i++)
-    pindex[i] = i;
-  PetscInt *nIndex = (PetscInt *) malloc (n*sizeof(PetscInt));
-  for (i=0; i<n; i++)
-    nIndex[i] = i;
+  PetscInt sz, m, n;
+  PetscInt we = 0, one = 1;
   PetscInt mu_com;
+  PetscInt nParams = reduced->numParamSet;
+  PetscInt sizeN = primal->self->systemSize;
+  PetscInt snapshotCount = primal->self->time.count;
+  PetscInt *value = (PetscInt *) malloc (sizeN*sizeof(PetscInt));
+  PetscScalar *avec;
+  PetscScalar *snapshot_mu = (PetscScalar *)malloc(sizeN*sizeof(PetscScalar));
+  Vec initVec;
+  Mat model;
+  Mat A;
+  Mat fullSnapshot;
+  PetscViewer viewer, reader;
   //---------------------------------------------------------------------------
   // Initialization
   //---------------------------------------------------------------------------
+  MatGetSize(reduced->ST_rOBState, &m, &n);
 
-  PetscScalar *snapshot_mu = (PetscScalar *) malloc (systemSize*sizeof(PetscScalar));
+  yk_VecCreateSeq(&initVec, n);
+  printf("%d %d\n", sizeN*snapshotCount, nParams);
+  yk_MatCreateSeqDense(&fullSnapshot, sizeN*snapshotCount, nParams);
 
-  yk_MatCreateSeqDense(&total, systemSize, reduced->numParamSet);
-
-  MatCreate(PETSC_COMM_SELF, &model);
-  MatSetSizes(model, n, reduced->numParamSet, n, reduced->numParamSet);
-    /* MatSetBlockSizes(model, systemSize, reduced->numParamSet); */
-  MatSetType(model, MATSEQDENSE);
-  MatSetFromOptions(model);
-  MatSetUp(model);
-  MatZeroEntries(model);
+  printf("%d %d\n", sizeN*snapshotCount, nParams);
   //---------------------------------------------------------------------------
   // Implementation
   //---------------------------------------------------------------------------
-  for (i=0; i<reduced->nSubWindows; i++){
-    for (k=0; k<snapshotCount; k++){ //time in each subwindow
-      row_ik = i*snapshotCount+k;
-      /* for (j=0; j<systemSize; j++) */
-      /* 	value[j] = k*snapshotC+j; */
-      for (j=0; j<reduced->numParamSet; j++){
-  	mu_com = j*snapshotCount+k;
-  	MatGetValues(snapshot[i], systemSize, primal->self->index, one, &mu_com, snapshot_mu);
-  	MatSetValues(total, systemSize, primal->self->index, one,  &j, snapshot_mu, INSERT_VALUES);
-      }
-      MatAssemblyBegin(total, MAT_FINAL_ASSEMBLY);
-      MatAssemblyEnd(total, MAT_FINAL_ASSEMBLY);
-      MatTransposeMatMult(reduced->ST_rOBState_i[row_ik],total,MAT_INITIAL_MATRIX,
-  			  PETSC_DEFAULT, &model_k);
-      /* printf("great\n"); */
-      /* MatGetValues(model_k, n, nIndex, reduced->numParamSet, pindex, model_i); */
-      /* for (j=0;j<n*reduced->numParamSet; j++) */
-      /* 	printf("%g\n", model_i[j]); */
-      /* printf("legs legs\n"); */
-      /* printf("%d\n", row_ik); */
-      /* MatSetValues(model, n, &nIndex, pindex, &we, model_i, ADD_VALUES); */
-      /*printf("tired\n"); */
-      MatAXPY(model, one, model_k, SAME_NONZERO_PATTERN);
-      MatDestroy(&model_k);
-   }
+  for (k=0; k<snapshotCount; k++){ //time in each subwindow
+    for (j=0; j<sizeN; j++)
+      value[j] = k*sizeN+j;
+    for (j=0; j<nParams; j++){
+      mu_com = j*snapshotCount+k;
+      MatGetValues(*snapshot, sizeN, primal->self->index, one, &mu_com,
+		   snapshot_mu);
+      MatSetValues(fullSnapshot, sizeN, value, 1, &j, snapshot_mu,
+		   INSERT_VALUES);
+    }
   }
-  MatAssemblyBegin(model, MAT_FINAL_ASSEMBLY);
-  MatAssemblyEnd(model, MAT_FINAL_ASSEMBLY);
-  /* MatView(model, PETSC_VIEWER_STDOUT_SELF); */
-  /* getchar(); */
+  MatAssemblyBegin(fullSnapshot, MAT_FINAL_ASSEMBLY);
+  MatAssemblyEnd(fullSnapshot, MAT_FINAL_ASSEMBLY);
+  //Take the psuedo inverser of the entire basis matrix
+  moorePenrosePseudoInv(reduced->ST_rOBState, m, n, &A);
+  //Calculate the model in which we will predict the initial conditions
+  MatMatMult(A,fullSnapshot,MAT_INITIAL_MATRIX, PETSC_DEFAULT, &model);
 
-
-  /* PetscScalar *snapshot_mu = (PetscScalar *) malloc */
-  /*   (systemSize*snapshotCount*sizeof(PetscScalar)); */
-
-
-  /* yk_MatCreateSeqDense(&total, totalSize, reduced->numParamSet); */
-
-
-  /* for (i=0;i<reduced->nSubWindows; i++){ */
-  /*   MatTranspose(snapshot[i], MAT_INITIAL_MATRIX, &C); */
-  /*   for (k=0; k<reduced->numParamSet; k++){ */
-  /*     for (j=0; j<snapshotCount; j++) */
-  /* 	sub_index[j] = k*snapshotCount+j; */
-  /*     MatGetValues(C, snapshotCount, sub_index, systemSize, */
-  /* 		 primal->self->index,snapshot_mu); */
-  /*     for (j=0; j<systemSize*snapshotCount; j++) */
-  /* 	total_index[j] = i*systemSize*snapshotCount+j; */
-  /*     MatSetValues(total, systemSize*snapshotCount, total_index, */
-  /* 		   1, &k, snapshot_mu, INSERT_VALUES); */
-  /*   } */
-  /*   MatDestroy(&C); */
-  /* } */
-  /* MatAssemblyBegin(total, MAT_FINAL_ASSEMBLY); */
-  /* MatAssemblyEnd(total, MAT_FINAL_ASSEMBLY); */
-  /* MatView(total, PETSC_VIEWER_STDOUT_SELF); */
-  /* getchar(); */
-  /* /\* //Find the model now (reduced states for all the data) *\/ */
-  /* MatTransposeMatMult(reduced->ST_rOBState,total,MAT_INITIAL_MATRIX, */
-  /* 		      PETSC_DEFAULT, &model); */
-  /* MatView(model, PETSC_VIEWER_STDOUT_SELF); */
-  /* getchar(); */
   //Write the model to a binary file so that it can be read by python function
-
   PetscViewerBinaryOpen(PETSC_COMM_SELF,"initialConditions.dat",
 			FILE_MODE_WRITE,&viewer);
   MatView(model, viewer);
+
   PetscViewerDestroy(&viewer);
   //---------------------------------------------------------------------------
   // Find the estimated initial conditions guess for the reduced states
   //---------------------------------------------------------------------------
   //Execute the python linear regression function to find the estimated r state
-  /* sprintf(outputS, "%s", argv[0]); */
-  /* for (i=1; i<3; i++) */
-  /*   strcat(outputS, argv[i]); */
   /* sprintf(outputS, "main([%g, %g, %g, %g, %g, %g])", */
   /* 	  reduced->paramsL[0], reduced->paramsH[0], reduced->dparams[0], */
   /* 	  reduced->paramsL[1],reduced->paramsH[1], reduced->dparams[1] ); */
 
+  /* PyRun_SimpleString("from runs.cases.readLinearRegressMat import main"); */
+  /* PyRun_SimpleString(outputS); */
+
   sprintf(outputS, "python3 ../readLinearRegressMat.py %g %g %g %g %g %g",
-	  reduced->paramsL[0], reduced->paramsH[0], reduced->dparams[0],
+  	  reduced->paramsL[0], reduced->paramsH[0], reduced->dparams[0],
   	  reduced->paramsL[1],reduced->paramsH[1], reduced->dparams[1] );
-  printf("%s\n", outputS);
   system(outputS);
 
-  /* /\* printf("%s\n", outputS); *\/ */
-  /* int status = system(outputS); */
-  /* if (status<0){ */
-  /*   printf("%d\n", errno); */
-  /*   exit(EXIT_FAILURE); */
-
-  /* } */
- /* printf("%d\n", status); */
-  /* printf("%s\n", argv[0]); */
-  /* Py_SetProgramName(argv[0]); */
-
-  /* Py_Initialize(); */
-
-  //IMPROTANT
-  /* PyRun_SimpleString("from runs.cases.readLinearRegressMat import main"); */
-
-  /* PyRun_SimpleString(outputS); */
-  /* //IMPROTANT */
-  /* Py_Finalize(); */
-
-  /* system(outputS); */
+  //---------------------------------------------------------------------------
+  // Read in the new predicted initial conditions to be used in this window
+  //---------------------------------------------------------------------------
   PetscViewerBinaryOpen(PETSC_COMM_SELF,"predictedInit.dat",FILE_MODE_READ,
 			&reader);
-  PetscViewerBinaryGetDescriptor(reader,&fd);
-  VecCreate(PETSC_COMM_SELF,&reduced->init);
-  VecSetSizes(reduced->init,PETSC_DECIDE,n);
+  PetscViewerBinaryGetDescriptor(reader, &fd);
+  //Create vector to put the new intiial conditions in
+  VecCreate(PETSC_COMM_SELF, &reduced->init);
+  VecSetSizes(reduced->init, PETSC_DECIDE,n);
   VecSetFromOptions(reduced->init);
-  VecGetArray(reduced->init,&avec);
+  VecGetArray(reduced->init, &avec);
 
   //Read data into vector
   PetscBinaryRead(fd,&sz,1,NULL,PETSC_SCALAR);
@@ -192,15 +112,12 @@ void yk_predictInitialCondition(Cluster *primal, Mat *snapshot,Is_it *reduced){
   //---------------------------------------------------------------------------
   // Destroy Everything
   //---------------------------------------------------------------------------
-  MatDestroy(&total);
+  MatDestroy(&fullSnapshot);
   MatDestroy(&model);
-  free(model_i);
+  MatDestroy(&A);
+  VecDestroy(&initVec);
   free(value);
-  free(nIndex);
-  free(pindex);
-  free(sub_index);
   free(snapshot_mu);
-  free(total_index);
 }
 
 void yk_createReducedOrderModel_ST(yk_PrimalSolver *ykflow,
@@ -227,7 +144,8 @@ void yk_createReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   int info_n;
   PetscInt basis_0;
   char cwd[10000];
-  /* Mat **total_smu; */
+  Mat winSnapshot;
+/* Mat **total_smu; */
   //---------------------------------------------------------------------------
   // Initialization (Mallocs and stuff)
   //---------------------------------------------------------------------------
@@ -269,20 +187,19 @@ void yk_createReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   for (i=0; i<reduced->nSubWindows; i++){ //Iterate the number of sub win
     //Set where you want the offline stage to take place in time
     primal->self->time.t_0 = (snapshotCount_0+i*snapshotCount_sub)*dt;
+
     primal->self->time.t_f = (snapshotCount_0+(i+1)*snapshotCount_sub)*dt;
     //-------------------------------------------------------------------------
     // FOr eac subspace time window calcualte the original POD for space
     //-------------------------------------------------------------------------
     s_mu = yk_createSnapshotState(ykflow, multiquation, primal, &snapshot[i],
                                   reduced->dss, reduced);
-    printf("help me\n");
     yk_properOrthogonalDecompose(&snapshot[i], primal->self->systemSize,
                                  primal->self->index, &reduced->nBasisFuncs,
                                  reduced->eBasisSpace, &reduced->rOBState);
     //-------------------------------------------------------------------------
     // Now need to calcualte the temmporal POD and et.c TIME
     //-------------------------------------------------------------------------
-    printf("what is happening here\n");
     MatGetSize(reduced->rOBState, &rows, &nBasis);
     PetscMalloc1(nBasis, &st_snapshot);
     PetscMalloc1(nBasis, &st_basis_temp);
@@ -292,28 +209,21 @@ void yk_createReducedOrderModel_ST(yk_PrimalSolver *ykflow,
     yk_properOrthogonalDecomposeGroup(st_snapshot, nBasis, snapshotCount_sub,
                                       primal->self->index,&reduced->nBasisTime,
                                       reduced->eBasisTime, st_basis_temp);
-    printf("um\n");
     //-------------------------------------------------------------------------
     // Calculate the ST-HOSVD Tailored space-time basis
     //-------------------------------------------------------------------------
     yk_createSpaceTimeBasis(&reduced->rOBState,st_basis_temp,&subspaceTime[i]);
-    printf("poke\n");
     //-------------------------------------------------------------------------
     // Destriy Everything that must be within each subspace
     //-------------------------------------------------------------------------
     info_n = win_i*reduced->nSubWindows+i;
     MatGetSize(reduced->rOBState, &m, &reduced->final_nBasis_s[info_n]);
     //st basis stuff
-    printf("light\n");
     reduced->final_nBasis_t =
       yk_reallocPetscInt(reduced->final_nBasis_t, basis_0+nBasis);
-    printf("love %d\n", nBasis);
-    printf("%d\n", m);
-    printf("%d\n", basis_0);
     for (j=0; j<nBasis; j++){
       MatGetSize(st_basis_temp[j], &m, &reduced->final_nBasis_t[basis_0+j]);
     }
-    printf("poop\n");
     basis_0+=nBasis;
     MatGetSize(subspaceTime[i], &m, &reduced->final_nBasis_st[info_n]);
 
@@ -327,18 +237,21 @@ void yk_createReducedOrderModel_ST(yk_PrimalSolver *ykflow,
     PetscFree(st_basis_temp);
     PetscFree(s_mu);
   }
-  printf("okay\n");
   //---------------------------------------------------------------------------
   //space time basis, and it's broken down version for each dt in subspace
   //---------------------------------------------------------------------------
   yk_formatSpaceTimeBasis(primal, subspaceTime, &reduced->ST_rOBState,
 			  reduced->ST_rOBState_i, reduced);
-  printf("why why why\n");
-  yk_predictInitialCondition(primal, snapshot, reduced);
   //-------------------------------------------------------------------------
   // Add the space-time basis to the whole space-time matrix the ultimate one
   //-------------------------------------------------------------------------
-  primal->self->time.count = snapshotCount; //reset it
+  primal->self->time.count = snapshotCount_win;
+  primal->self->time.t_0 = primal->self->time.window_i*snapshotCount_win*dt;
+  yk_createSnapshotState(ykflow, multiquation, primal, &winSnapshot,
+				reduced->dss, reduced);
+  printf("porkie\n");
+  yk_predictInitialCondition(primal, &winSnapshot, reduced);
+
   //---------------------------------------------------------------------------
   // Save important ingo to save
   //---------------------------------------------------------------------------
@@ -350,6 +263,8 @@ void yk_createReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   /*   perror("getcwd() error"); */
   /*   return 1; */
   /* } */
+
+  primal->self->time.count = snapshotCount; //rese
   //---------------------------------------------------------------------------
   // Destroy Everything
   //---------------------------------------------------------------------------
@@ -357,6 +272,7 @@ void yk_createReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   for (i=0; i<reduced->nSubWindows; i++){ MatDestroy(&snapshot[i]);}
   PetscFree(subspaceTime);
   PetscFree(snapshot);
+  MatDestroy(&winSnapshot);
 }
 
 void yk_runReducedOrderModel_ST(yk_PrimalSolver *ykflow,
@@ -423,7 +339,7 @@ void yk_runReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   initArrayInt(&primalApprox->self->time.time_Os, snapshotCount_win);
   for (i=0; i<snapshotCount_win; i++)
     primalApprox->self->time.time_Os.array[i] = i;
-
+  primalApprox->self->J = (double *) malloc (2*sizeof(double));
   sprintf(primalApprox->self->id, "%s_%s_%d_%d_%s", (*_eqnFull).nameEqn,
           primalApprox->clusterId, primalApprox->self->basis.p,
           primalApprox->self->time_method, approximateID);
@@ -456,19 +372,15 @@ void yk_runReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   //---------------------------------------------------------------------------
   // Calculate the initial conditions for the reduced space states
   //---------------------------------------------------------------------------
-  /* createInitialConditions_ST(ykflow, multiquation, primal, */
-  /* 			     &reduced->ST_rOBState, &init, reduced); */
-
   for (i=0; i<reduced->nSims; i++){
-    VecView(reduced->init, PETSC_VIEWER_STDOUT_SELF);
+    printf("Simulation Number %d\n", i);
     vec2Array(*_eqnRcd, primalApprox->reduced,
 	      primalApprox->reduced->space, reduced->init);
-    printf("reduced number window %d\n", primal->self->time.window_i);
     ks_printSolution(*_eqnRcd, primalApprox->reduced,
 		     primal->self->time.window_i);
-    //---------------------------------------------------------------------------
+    //-------------------------------------------------------------------------
     // Gauss Newton solver to minimize 1/2 norm(Residua, 2)^2
-    //---------------------------------------------------------------------------
+    //-------------------------------------------------------------------------
     tic = clock();
     yk_gaussNewtonSolve_ST(ykflow, multiquation, primalApprox, reduced,
     			   innertimesolver, &reduced->nSnapshotsRJ);
@@ -507,6 +419,7 @@ void yk_destroyReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   destroySystem(_equationReduced, primalApprox->reduced);
   destroySystem(multiquation->equation, primalApprox->self);
   free(primalApprox->reduced);
+  free(primalApprox->self->J);
   free(primalApprox->self);
 }
 
@@ -609,8 +522,8 @@ void yk_createHyperReducedOrderModel_ST(yk_PrimalSolver *ykflow,
   //---------------------------------------------------------------------------
   /* primal->self->time.t_0 = snapshotCount_0; */
   /* primal->self->time.t_f = (snapshotCount_0+snapshotCount_win)*dt; */
-  primal->self->time.t_0 = primal->self->time.window_i*snapshotCount_win*dt;
-  primal->self->time.t_f=(primal->self->time.window_i+1)*snapshotCount_win*dt;
+  primal->self->time.t_0 = round(primal->self->time.window_i*snapshotCount_win*dt);
+  primal->self->time.t_f=round((primal->self->time.window_i+1)*snapshotCount_win*dt);
   //---------------------------------------------------------------------------
   //Readm the snapshot residualmatrix file for manipulation
   //---------------------------------------------------------------------------
@@ -1379,11 +1292,11 @@ void createInitialConditions_ST(yk_PrimalSolver *ykflow,
   //------------------------------------//-------------------------------------
   // Variables here                     // Comments section
   //------------------------------------//-------------------------------------
-  int mach = round(reduced->params[0]*10);
+  int mach = 60;
   int alfa = round(reduced->params[1]);
   /* int alfa = 9; */
   int reynolds = round(reduced->params[2]);
-  int timeNode0 = primal->self->time.t_0/primal->self->time.dt;
+  int timeNode0 = round(primal->self->time.t_0/primal->self->time.dt);
   char nameOfDir[1000];  //Name of the directory to go into , just rounding
   char cwd[1024];
   PetscInt i,j; //initialization for iteration
@@ -1424,7 +1337,7 @@ void createInitialConditions_ST(yk_PrimalSolver *ykflow,
   //Find the file name of the folder we want to go into and set it to nameOfDir
 
   sprintf(nameOfDir, "%s/%s_M_%d_A_%d_Re_%d", ykflow->path,
-	  multiquation->equation.nameEqn, mach*10, alfa*100, reynolds);
+	  multiquation->equation.nameEqn, 700, 800, reynolds);
   getcwd(cwd, sizeof(cwd));
   printf("CWD ITNERESTED %s\n", cwd);
   printf("%s\n", nameOfDir);
@@ -1435,6 +1348,7 @@ void createInitialConditions_ST(yk_PrimalSolver *ykflow,
     perror(nameOfDir);
     exit(0);
   }
+  printf("%d\n", timeNode0);
   //Read the state solutions for the initial time in that directory
   ks_readSolution(multiquation->equation, primal->self, timeNode0);
   array2Data(multiquation->equation, primal->self, state_0);
@@ -1457,6 +1371,7 @@ void createInitialConditions_ST(yk_PrimalSolver *ykflow,
   }
   VecAssemblyBegin(vecsnapshot);
   VecAssemblyEnd(vecsnapshot);
+
   /* MatGetSize(*st_rOBTemp, &row, &col); */
   /* printf("fact %d %d\n", row, col); */
   /* VecGetSize(vecsnapshot, &row); */

@@ -8,18 +8,18 @@
 //-----------------------------------------------------------------------------
 
 
-int ks_checkSolutionExist(Universe eqn, Galaxy *U, int node){
-  /* int i, j;             //initialization for iteration */
-  /* FILE* solution_file; */
-  /* char outputFile[1000]; */
-  /* sprinf(outputFile, "%s_%d.dat", U->id, node); */
-  /* if( access( outputFile, F_OK ) != -1 ) */
-  /*   return 1; */
-  /* else */
-  /*   return 0; */
-  /* return 0; */
+/* int ks_checkSolutionExist(Universe eqn, Galaxy *U, int node){ */
+/*   /\\* int i, j;             //initialization for iteration *\/ */
+/*   /\* FILE* solution_file; *\/ */
+/*   /\* char outputFile[1000]; *\/ */
+/*   /\* sprinf(outputFile, "%s_%d.dat", U->id, node); *\/ */
+/*   /\* if( access( outputFile, F_OK ) != -1 ) *\/ */
+/*   /\*   return 1; *\/ */
+/*   /\* else *\/ */
+/*   /\*   return 0; *\/ */
+/*   /\* return 0; *\/ */
 
-}
+/* } */
 
 void ks_printSolution(Universe eqn, Galaxy* U, int node){
   int i, j;             //initialization for iteration

@@ -583,8 +583,8 @@ void yk_add2VectorGroupScalar(xf_VectorGroup *A, double randomV){
 void yk_fomBuffer(yk_PrimalSolver *ykflow, Universe equation, Is_it *reduced, \
 		  int p, char *nameOfDir){
 
-  int mach= reduced->paramMeshGrid[p*reduced->numParams]*1000;
-  int alfa = round(reduced->paramMeshGrid[p*reduced->numParams+1]*100);
+  int mach= reduced->paramMeshGrid[p*reduced->numParams]*10000;
+  int alfa = round(reduced->paramMeshGrid[p*reduced->numParams+1]*1000);
   int reynolds = reduced->paramMeshGrid[p*reduced->numParams+2];
   sprintf(nameOfDir, "%s/%s_M_%d_A_%d_Re_%d", ykflow->path, equation.nameEqn,
 	  mach,  alfa, reynolds);
@@ -782,12 +782,15 @@ void yk_xflow_totalResidual(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   char SavePrefix[xf_MAXSTRLEN];
   xf_Data *D=NULL;
   int ttime;
+  char LogOutput[xf_MAXSTRLEN];
+  double output;
   //---------------------------------------------------------------------------
   // Implementation
   //---------------------------------------------------------------------------
+  xf_Call(xf_GetKeyValue(xflow->All->Param->KeyValue, "LogOutput",LogOutput));
+
   /* xf_Call(xf_GetKeyValue(xflow->KeyValueArg, "job", jobFile)); */
   /* sprintf(SavePrefix, "%s", jobFile); */
-
 
   xf_Call(xf_CreateSolverData(xflow->All, &SolverData));
   SolverData->DoProcessResidual = xfe_False; // do not process residual
@@ -878,6 +881,12 @@ void yk_xflow_totalResidual(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   if (Jacobian != NULL)
     yk_matrix2D2MatGroup(xflow->All, R_U, state, Jacobian, reduced);
 
+
+  if (reduced->JFlag == 1){
+    for (i=0; i<2; i++)
+      xf_CalculateOutput(xflow->All, xflow->All->EqnSet->Outputs->Output[i].Name, UGi[0],
+			 &state->J[i], NULL, xfe_Set);
+  }
   //---------------------------------------------------------------------------
   // Destory everythiung
   //---------------------------------------------------------------------------
@@ -885,6 +894,7 @@ void yk_xflow_totalResidual(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   xf_Call(xf_DestroyDataSet(DataSet));
   xf_Release((void *) UGi);
 }
+
 
 //-----------------------------------------------------------------------------
 // Convert xflow text file to ykflow state file
@@ -1024,7 +1034,6 @@ void yk_Init(yk_PrimalSolver *ykflow, Multiverse *multiquation, Cluster *fom,
   initIs_it(reduced);
   read_input(argcIn, argvIn, multiquation->equation, NULL, NULL, reduced);
 
-  printf("%g %g %g\n", reduced->params[0],reduced->params[1], reduced->params[2]);
   sprintf(createParam,"python3 createParam.py %g %g %g",
 	  reduced->params[0], reduced->params[1], reduced->params[2]);
 
@@ -1081,6 +1090,8 @@ void yk_Init(yk_PrimalSolver *ykflow, Multiverse *multiquation, Cluster *fom,
   strcpy(fom->clusterId, "state");
   strcpy(fom->self->utypeId, "state");
   createSystem(multiquation->equation, fom->self);
+  //Number of outputs interested in
+  fom->self->J = (double *) malloc (2*sizeof(double));
   //---------------------------------------------------------------------------
   // Parmas create the meshgrid signifying the different data
   //---------------------------------------------------------------------------
@@ -1417,12 +1428,14 @@ void yk_createSnapshotResidualFile(yk_PrimalSolver *ykflow,
   struct stat sb = {0};
   struct stat st = {0};
   int tempSims = reduced->nSims;
+  getcwd(cwd, sizeof(cwd));
+  printf("%s\n", cwd);
   //---------------------------------------------------------------------------
   // Prepare the ultimate Residual snapshot file
   //---------------------------------------------------------------------------
   reduced->nSims = 1;
   // Create the ultimate residual snapshot file and open it to write into
-  sprintf(file_out, "%s/residualSnapshot_%d.dat", ykflow->path, win_i);
+  sprintf(file_out, "%s/residualSnapshot_%d.dat", cwd, win_i);
   fout = fopen(file_out, "w+");
   if (!fout) {
     perror("fopen output file");
@@ -1448,7 +1461,7 @@ void yk_createSnapshotResidualFile(yk_PrimalSolver *ykflow,
     printf("Get Data from --->>>> %s\n", fomBuffer);
     if (stat(fomBuffer, &sb) == 0 && S_ISDIR(sb.st_mode)) {
       chdir(fomBuffer);
-      getcwd(cwd, sizeof(cwd));
+      //getcwd(cwd, sizeof(cwd));
     } else {
       perror(fomBuffer);
       exit(0);
@@ -1466,7 +1479,7 @@ void yk_createSnapshotResidualFile(yk_PrimalSolver *ykflow,
     // Run through parameter space and calcualte ROM for each parameter set
     //-------------------------------------------------------------------------
     //Create directory to save data for each parameter space value
-    sprintf(paramCalc, "%s/residualSnapshot_param_%d", ykflow->path, p);
+    sprintf(paramCalc, "%s/residualSnapshot_param_%d",  cwd, p);
     if (stat(paramCalc, &st) == -1)
       mkdir(paramCalc, 0700);
     //Copy over initial conditions from the given data to new folders
@@ -1509,7 +1522,7 @@ void yk_createSnapshotResidualFile(yk_PrimalSolver *ykflow,
   //Close the ultimate residual file, because it is done!
   fclose(fout);
   //Back to the original working directory
-  chdir(ykflow->path);
+  chdir(cwd);
 }
 
 
@@ -1619,6 +1632,7 @@ void yk_initializeYkflow(yk_PrimalSolver *ykflow, Multiverse *multiquation,
 
   fom->self->time.dt = (fom->self->time.t_f-fom->self->time.t_0)/nTimeStep;
   fom->self->time.count = nTimeStep;
+  fom->self->J = (double *) malloc (2*sizeof(double));
   //---------------------------------------------------------------------------
   //Set the total number of elements FIne
   //---------------------------------------------------------------------------
@@ -1679,23 +1693,31 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   enum xfe_Bool DoRestart;
   char windowString[xf_MAXSTRLEN];
   char cwd[xf_MAXSTRLEN];
+  Vec delDrag;
+  Vec delLift;
+  double drag, lift;
+  PetscReal normDrag, normLift;
   //---------------------------------------------------------------------------
   // Initialization
   //---------------------------------------------------------------------------
   yk_VecCreateSeq(&fomVec, sysSize);
   yk_VecCreateSeq(&romVec, sysSize);
 
+  yk_VecCreateSeq(&delDrag, time);
+  yk_VecCreateSeq(&delLift, time);
+
   yk_MatCreateSeqDense(&fomMat, sysSize, time);
   yk_MatCreateSeqDense(&romMat, sysSize, time);
   yk_MatCreateSeqDense(&resRomMat, sysSize, time);
-  /* if (reduced->runHrom == 1){ */
-  /*   yk_MatCreateSeqDense(&hromMat, sysSize, time); */
-  /*   yk_VecCreateSeq(&hromVec, sysSize); */
-  /*   yk_MatCreateSeqDense(&resHromMat, sysSize, time); */
-  /* } */
+  if (reduced->runHrom == 1){
+    yk_MatCreateSeqDense(&hromMat, sysSize, time);
+    yk_VecCreateSeq(&hromVec, sysSize);
+    yk_MatCreateSeqDense(&resHromMat, sysSize, time);
+  }
   //---------------------------------------------------------------------------
   // Space-Time Reduced-Order Modeling
   //---------------------------------------------------------------------------
+  reduced->JFlag = 0;
   yk_textBoldBorder("ykflow: Windowed Space-Time Model Order Reduction");
   for (i=0; i<reduced->nTimeSegs; i++){ //Number of time windows
     fom->self->time.window_i = i;
@@ -1713,18 +1735,19 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
     //-------------------------------------------------------------------------
     // Hyper-Reduced Order Modeling
     //-------------------------------------------------------------------------
-    /* if (reduced->runHrom == 1){ */
-    /*   yk_textBoldBorder("Windowed ST Gauss Newton w/ Approx Tensors"); */
-    /*   yk_textBorder("1. Create the hyper reduced order model"); */
-    /*   yk_createHyperReducedOrderModel_ST(ykflow, multiquation, fom, rom,reduced); */
-    /*   yk_textBorder("2. Find the hyper reduced order model"); */
-    /*   yk_runHyperReducedOrderModel_ST(ykflow, multiquation, fom, hrom, */
-    /* 				      reduced->h_t, reduced); */
-    /* } */
+    if (reduced->runHrom == 1){
+      yk_textBoldBorder("Windowed ST Gauss Newton w/ Approx Tensors");
+      yk_textBorder("1. Create the hyper reduced order model");
+      yk_createHyperReducedOrderModel_ST(ykflow, multiquation, fom, rom,reduced);
+      yk_textBorder("2. Find the hyper reduced order model");
+      yk_runHyperReducedOrderModel_ST(ykflow, multiquation, fom, hrom,
+    				      reduced->h_t, reduced);
+    }
     //-------------------------------------------------------------------------
     //Post process here
     //-------------------------------------------------------------------------
     reduced->hrom = 0;
+    reduced->JFlag = 1;
     /* if (i==reduced->nTimeSegs-1){ */
     for (j=0; j<nPerWindow; j++){
       j_i = i*nPerWindow+j;
@@ -1741,8 +1764,15 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
 
       rom->self->time.node = j_i+1;
 
+      yk_xflow_totalResidual(ykflow, multiquation, fom->self, romVec,
+			     NULL, reduced, 0);
+
       yk_xflow_totalResidual(ykflow, multiquation, rom->self, romVec,
 			     NULL, reduced, 0);
+      drag=rom->self->J[0]-fom->self->J[0];
+      lift=rom->self->J[1]-fom->self->J[1];
+      VecSetValue(delDrag, j_i, drag, INSERT_VALUES);
+      VecSetValue(delLift, j_i, lift, INSERT_VALUES);
       ks_Vec2MatCol(resRomMat, sysSize, fom->self->index, j_i, romVec,
 		    INSERT_VALUES);
 
@@ -1778,8 +1808,12 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   /*     xf_Release((void **) xflow->All->Mesh->ElemGroup[j].sElem); */
   }
 
-
   yk_textBoldBorder("Numerical Results");
+
+  VecNorm(delDrag, NORM_2, &reduced->normDrag);
+  VecNorm(delLift, NORM_2, &reduced->normLift);
+
+  printf("HUMANS %g %g\n", reduced->normDrag, reduced->normLift);
 
   MatAssemblyBegin(fomMat, MAT_FINAL_ASSEMBLY);
   MatAssemblyEnd(fomMat, MAT_FINAL_ASSEMBLY);
@@ -1833,13 +1867,13 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   MatDestroy(&resRomMat);
   VecDestroy(&fomVec);
   VecDestroy(&romVec);
-  /* if (reduced->hrom == 1){ */
-  /*   VecDestroy(&hromVec); */
-  /*   MatDestroy(&hromMat); */
-
-  /*   MatDestroy(&resHromMat); */
-
-  /* } */
+  VecDestroy(&delDrag);
+  VecDestroy(&delLift);
+  if (reduced->hrom == 1){
+    VecDestroy(&hromVec);
+    MatDestroy(&hromMat);
+    MatDestroy(&resHromMat);
+  }
 }
 
 void yk_write2ExcelFile(Cluster *primal, Is_it *reduced){
@@ -1921,6 +1955,7 @@ void yk_write2ExcelFile(Cluster *primal, Is_it *reduced){
       index_t_r+=sprintf(&str_res_t[index_t_r], "]");
     }
   }
+  printf("letitgo\n");
   //---------------------------------------------------------------------------
   //Write to an excel file
   //---------------------------------------------------------------------------
@@ -1951,49 +1986,54 @@ void yk_write2ExcelFile(Cluster *primal, Is_it *reduced){
   worksheet_write_number(worksheet, 1, 10, reduced->relnormROM, NULL);
   worksheet_write_string(worksheet, 0, 11, "residual", NULL);
   worksheet_write_number(worksheet, 1, 11,  reduced->resNormROM, NULL);
-  worksheet_write_string(worksheet, 0, 12, "nSim1", NULL);
-  worksheet_write_number(worksheet, 1, 12, reduced->r_t[nSims-5], NULL);
-  worksheet_write_string(worksheet, 0, 13, "nSim2", NULL);
-  worksheet_write_number(worksheet, 1, 13, reduced->r_t[nSims-4], NULL);
-  worksheet_write_string(worksheet, 0, 14, "nSim3", NULL);
-  worksheet_write_number(worksheet, 1, 14, reduced->r_t[nSims-3], NULL);
-  worksheet_write_string(worksheet, 0, 15, "nSim4", NULL);
-  worksheet_write_number(worksheet, 1, 15, reduced->r_t[nSims-2], NULL);
-  worksheet_write_string(worksheet, 0, 16, "nSim5", NULL);
-  worksheet_write_number(worksheet, 1, 16, reduced->r_t[nSims-1], NULL);
-  worksheet_write_string(worksheet, 0, 17, "Average", NULL);
-  worksheet_write_number(worksheet, 1, 17, reduced->aveR_t, NULL);
+  worksheet_write_string(worksheet, 0, 12, "L2 Drag Error", NULL);
+  worksheet_write_number(worksheet, 1, 12, reduced->normDrag, NULL);
+  worksheet_write_string(worksheet, 0, 13, "L2 Lift Error", NULL);
+  worksheet_write_number(worksheet, 1, 13, reduced->normLift, NULL);
+  worksheet_write_string(worksheet, 0, 14, "nSim1", NULL);
+  worksheet_write_number(worksheet, 1, 14, reduced->r_t[nSims-5], NULL);
+  worksheet_write_string(worksheet, 0, 15, "nSim2", NULL);
+  printf("letitbgo\n");
+  worksheet_write_number(worksheet, 1, 15, reduced->r_t[nSims-4], NULL);
+  worksheet_write_string(worksheet, 0, 16, "nSim3", NULL);
+  worksheet_write_number(worksheet, 1, 16, reduced->r_t[nSims-3], NULL);
+  worksheet_write_string(worksheet, 0, 17, "nSim4", NULL);
+  worksheet_write_number(worksheet, 1, 17, reduced->r_t[nSims-2], NULL);
+  worksheet_write_string(worksheet, 0, 18, "nSim5", NULL);
+  worksheet_write_number(worksheet, 1, 18, reduced->r_t[nSims-1], NULL);
+  worksheet_write_string(worksheet, 0, 19, "Average", NULL);
+  worksheet_write_number(worksheet, 1, 19, reduced->aveR_t, NULL);
   if (reduced->runHrom == 1){
-    worksheet_write_string(worksheet, 0, 18, "ns_r/es_r", NULL);
-    worksheet_write_number(worksheet, 1, 18, reduced->eReBasisSpace, NULL);
-    worksheet_write_string(worksheet, 0, 19, "nt_r/et_r", NULL);
-    worksheet_write_number(worksheet, 1, 19, reduced->eReBasisTime, NULL);
-    worksheet_write_string(worksheet, 0, 20, "sample time", NULL);
-    worksheet_write_number(worksheet, 1, 20, reduced->nSampleTime, NULL);
-    worksheet_write_string(worksheet, 0, 21, "sample space", NULL);
-    worksheet_write_number(worksheet, 1, 21, reduced->nSampleNodes, NULL);
-    worksheet_write_string(worksheet, 0, 22, "ns_r", NULL);
-    worksheet_write_string(worksheet, 1, 22, str_res, NULL);
-    worksheet_write_string(worksheet, 0, 23, "nt_r", NULL);
-    worksheet_write_string(worksheet, 1, 23, str_res_t, NULL);
-    worksheet_write_string(worksheet, 0, 24, "nst_r", NULL);
-    worksheet_write_string(worksheet, 1, 24, str_res_st, NULL);
-    worksheet_write_string(worksheet, 0, 25, "relative error gnat", NULL);
-    worksheet_write_number(worksheet, 1, 25, reduced->relnormHROM, NULL);
-    worksheet_write_string(worksheet, 0, 26, "residualgnat", NULL);
-    worksheet_write_number(worksheet, 1, 26,  reduced->resNormHROM, NULL);
-    worksheet_write_string(worksheet, 0, 27, "nSim1", NULL);
-    worksheet_write_number(worksheet, 1, 27, reduced->h_t[nSims-5], NULL);
-    worksheet_write_string(worksheet, 0, 28, "nSim2", NULL);
-    worksheet_write_number(worksheet, 1, 28, reduced->h_t[nSims-4], NULL);
-    worksheet_write_string(worksheet, 0, 29, "nSim3", NULL);
-    worksheet_write_number(worksheet, 1, 29, reduced->h_t[nSims-3], NULL);
-    worksheet_write_string(worksheet, 0, 30, "nSim4", NULL);
-    worksheet_write_number(worksheet, 1, 30, reduced->h_t[nSims-2], NULL);
-    worksheet_write_string(worksheet, 0, 31, "nSim5", NULL);
-    worksheet_write_number(worksheet, 1, 31, reduced->h_t[nSims-1], NULL);
-    worksheet_write_string(worksheet, 0, 32, "Average gnat", NULL);
-    worksheet_write_number(worksheet, 1, 32, reduced->aveH_t, NULL);
+    worksheet_write_string(worksheet, 0, 20, "ns_r/es_r", NULL);
+    worksheet_write_number(worksheet, 1, 20, reduced->eReBasisSpace, NULL);
+    worksheet_write_string(worksheet, 0, 21, "nt_r/et_r", NULL);
+    worksheet_write_number(worksheet, 1, 21, reduced->eReBasisTime, NULL);
+    worksheet_write_string(worksheet, 0, 22, "sample time", NULL);
+    worksheet_write_number(worksheet, 1, 22, reduced->nSampleTime, NULL);
+    worksheet_write_string(worksheet, 0, 23, "sample space", NULL);
+    worksheet_write_number(worksheet, 1, 23, reduced->nSampleNodes, NULL);
+    worksheet_write_string(worksheet, 0, 24, "ns_r", NULL);
+    worksheet_write_string(worksheet, 1, 24, str_res, NULL);
+    worksheet_write_string(worksheet, 0, 25, "nt_r", NULL);
+    worksheet_write_string(worksheet, 1, 25, str_res_t, NULL);
+    worksheet_write_string(worksheet, 0, 26, "nst_r", NULL);
+    worksheet_write_string(worksheet, 1, 26, str_res_st, NULL);
+    worksheet_write_string(worksheet, 0, 27, "relative error gnat", NULL);
+    worksheet_write_number(worksheet, 1, 27, reduced->relnormHROM, NULL);
+    worksheet_write_string(worksheet, 0, 28, "residualgnat", NULL);
+    worksheet_write_number(worksheet, 1, 28,  reduced->resNormHROM, NULL);
+    worksheet_write_string(worksheet, 0, 29, "nSim1", NULL);
+    worksheet_write_number(worksheet, 1, 29, reduced->h_t[nSims-5], NULL);
+    worksheet_write_string(worksheet, 0, 30, "nSim2", NULL);
+    worksheet_write_number(worksheet, 1, 30, reduced->h_t[nSims-4], NULL);
+    worksheet_write_string(worksheet, 0, 31, "nSim3", NULL);
+    worksheet_write_number(worksheet, 1, 31, reduced->h_t[nSims-3], NULL);
+    worksheet_write_string(worksheet, 0, 32, "nSim4", NULL);
+    worksheet_write_number(worksheet, 1, 32, reduced->h_t[nSims-2], NULL);
+    worksheet_write_string(worksheet, 0, 33, "nSim5", NULL);
+    worksheet_write_number(worksheet, 1, 33, reduced->h_t[nSims-1], NULL);
+    worksheet_write_string(worksheet, 0, 34, "Average gnat", NULL);
+    worksheet_write_number(worksheet, 1, 34, reduced->aveH_t, NULL);
   }
   workbook_close(workbook);
 
@@ -2056,10 +2096,11 @@ int main(int argc, char** argv) {
  /*  //--------------------------------------------------------------------------- */
  /*  /\* printf("CPU TIME\n"); *\/ */
  /*  /\* printf("%0.16e\n", fom->cpuTime); *\/ */
- /*  /\* Py_Finalize(); *\/ */
+  /* Py_Finalize(); */
 
   xf_Call(xf_DestroyTimeHistData(xflow->TimeHistData));
   destroySystem(multiquation->equation, fom->self);
+  free(fom->self->J);
   free(fom->self->index);
   free(fom->self);
   xf_CloseEqnSetLibrary(&xflow->All);
@@ -2074,7 +2115,6 @@ int main(int argc, char** argv) {
   free(reduced->final_Res_nBasis_s);
   free(reduced->final_Res_nBasis_t);
   free(reduced->final_Res_nBasis_st);
-
   free(reduced->win_i);
   free(reduced->params);
   free(reduced->paramsL);
