@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <Python.h>
+#include "ks_podv2.h"
 /*****************************************************************************/
 // FUNCTION Definition: yk_createReducedOrderModel_ST
 //
@@ -35,6 +36,7 @@ void yk_predictInitialCondition(Cluster *primal, Mat *snapshot,Is_it *reduced){
   Vec initVec;
   Mat model;
   Mat A;
+  Mat workA;
   Mat fullSnapshot;
   PetscViewer viewer, reader;
   //---------------------------------------------------------------------------
@@ -47,6 +49,10 @@ void yk_predictInitialCondition(Cluster *primal, Mat *snapshot,Is_it *reduced){
   yk_MatCreateSeqDense(&fullSnapshot, sizeN*snapshotCount, nParams);
 
   printf("%d %d\n", sizeN*snapshotCount, nParams);
+
+  MatTranspose(reduced->ST_rOBState, MAT_INITIAL_MATRIX, &A);
+  MatZeroEntries(A);
+
   //---------------------------------------------------------------------------
   // Implementation
   //---------------------------------------------------------------------------
@@ -61,16 +67,44 @@ void yk_predictInitialCondition(Cluster *primal, Mat *snapshot,Is_it *reduced){
 		   INSERT_VALUES);
     }
   }
+  /* MatAssemblyBegin(fullSnapshot, MAT_FINAL_ASSEMBLY); */
+  /* MatAssemblyEnd(fullSnapshot, MAT_FINAL_ASSEMBLY); */
+  /* //Take the psuedo inverser of the entire basis matrix */
+  /* moorePenrosePseudoInv(reduced->ST_rOBState, m, n, &A); */
+  /* //Calculate the model in which we will predict the initial conditions */
+  /* MatMatMult(A,fullSnapshot,MAT_INITIAL_MATRIX, PETSC_DEFAULT, &model); */
+
+  /* //Write the model to a binary file so that it can be read by python function */
+  /* PetscViewerBinaryOpen(PETSC_COMM_SELF,"initialConditions.dat", */
+  /* 			FILE_MODE_WRITE,&viewer); */
+  /* MatView(model, viewer); */
+
+  /* PetscViewerDestroy(&viewer); */
+  Mat modelA;
   MatAssemblyBegin(fullSnapshot, MAT_FINAL_ASSEMBLY);
   MatAssemblyEnd(fullSnapshot, MAT_FINAL_ASSEMBLY);
   //Take the psuedo inverser of the entire basis matrix
-  moorePenrosePseudoInv(reduced->ST_rOBState, m, n, &A);
-  //Calculate the model in which we will predict the initial conditions
+  printf("anymore\n");
+  moorePenrosePseudoInvSparse(reduced->ST_rOBState, m, n, &A);
+  printf("dsasdasd\n");
   MatMatMult(A,fullSnapshot,MAT_INITIAL_MATRIX, PETSC_DEFAULT, &model);
+  /* MatView(modelA, PETSC_VIEWER_STDOUT_SELF); */
+  /* printf("IKSDJOIAHDFOISHDOIASD\n"); */
+  /* getchar(); */
+  /* moorePenrosePseudoInv(reduced->ST_rOBState, m, n, &workA); */
+  /* //Calculate the model in which we will predict the initial conditions */
+  /* MatMatMult(workA,fullSnapshot,MAT_INITIAL_MATRIX, PETSC_DEFAULT, &model); */
+  /* MatView(model, PETSC_VIEWER_STDOUT_SELF); */
+  /* printf("adiushaiusdasd\n"); */
+
+  /* MatView(A, PETSC_VIEWER_STDOUT_SELF); */
+  /* getchar(); */
+  /* MatView(workA, PETSC_VIEWER_STDOUT_SELF); */
+  /* getchar(); */
 
   //Write the model to a binary file so that it can be read by python function
   PetscViewerBinaryOpen(PETSC_COMM_SELF,"initialConditions.dat",
-			FILE_MODE_WRITE,&viewer);
+  			FILE_MODE_WRITE,&viewer);
   MatView(model, viewer);
 
   PetscViewerDestroy(&viewer);
@@ -201,6 +235,8 @@ void yk_createReducedOrderModel_ST(yk_PrimalSolver *ykflow,
     // Now need to calcualte the temmporal POD and et.c TIME
     //-------------------------------------------------------------------------
     MatGetSize(reduced->rOBState, &rows, &nBasis);
+    printf("%lld\n", nBasis);
+    printf("%d\n", i);
     PetscMalloc1(nBasis, &st_snapshot);
     PetscMalloc1(nBasis, &st_basis_temp);
     yk_createTemporalSnapshotState(ykflow, multiquation, primal,

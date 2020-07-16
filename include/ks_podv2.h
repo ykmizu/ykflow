@@ -12,13 +12,15 @@
 #include "ks_read_solution_file.h"
 #include "ks_Residual.h"
 #include "ks_dRdU.h"
-#include "slepcsvd.h"  
+#include "slepcsvd.h"
 
 void createSnapshotState(Universe equation, Galaxy *primal,
                          Mat *snapshot, int dss);
 /* void approxState(Universe equation, Galaxy *primal, int dss, int snapshot_i, */
 /*                  Mat reducedOrderBasis); */
-void moorePenrosePseudoInv(Mat A, int rowSize, int colSize, Mat *Aplus);
+void moorePenrosePseudoInvSparse(Mat A, PetscInt rowSize, PetscInt colSize, Mat *Aplus);
+
+void moorePenrosePseudoInv(Mat A, PetscInt rowSize, PetscInt colSize, Mat *Aplus);
 void properOrthogonalDecompose(Mat snapshot, int systemSize,
                                PetscInt *numSingularValues, Mat *A);
 /* void reduceMatRows(Universe equation, Galaxy *primal, Mat A, int column, */

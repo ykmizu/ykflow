@@ -117,7 +117,88 @@ void createSnapshotState(Universe equation, Galaxy *primal, Mat *snapshot,
 /*   free(primalReduced); */
 /* } */
 
-void moorePenrosePseudoInv(Mat A, int rowSize, int colSize, Mat *Aplus){
+
+
+void moorePenrosePseudoInvSparse(Mat A, PetscInt rowSize, PetscInt colSize, Mat *Aplus){
+  int i, j, k;
+  PetscInt *rowIndex = (PetscInt *) malloc (rowSize*sizeof(PetscInt));
+  PetscInt *colIndex = (PetscInt *) malloc (colSize*sizeof(PetscInt));
+  PetscScalar *singular_i = (PetscScalar *)malloc(rowSize*sizeof(PetscScalar));
+  Vec singular;
+  Vec decomposition;
+  Vec decomptemp;
+  SVD svd;
+  PetscReal sigma;
+  PetscInt wtf;
+  PetscScalar *V_i = (PetscScalar *) malloc (colSize*sizeof(PetscScalar));
+
+  //----------------------------------------------------------------------------
+  //  I n i t i a l i z a t i o n
+  //---------------------------------------------------------------------------
+  for (i=0; i<rowSize; i++)
+    rowIndex[i] = i;
+  for (i=0; i<colSize; i++)
+    colIndex[i] = i;
+  VecCreateSeq(PETSC_COMM_SELF, rowSize, &singular);
+  VecCreateSeq(PETSC_COMM_SELF, colSize, &decomposition);
+  VecCreateSeq(PETSC_COMM_SELF, colSize, &decomptemp);
+  //---------------------------------------------------------------------------
+  // I m p l e m e n t a t i o n
+  //---------------------------------------------------------------------------
+  //---------------------------------------------------------------------------
+  // Perform SVD
+  //---------------------------------------------------------------------------
+  SVDCreate(PETSC_COMM_SELF, &svd);
+  SVDSetOperator(svd, A);
+  SVDSetFromOptions(svd);
+  SVDSetDimensions(svd, colSize,
+                   PETSC_DEFAULT, PETSC_DEFAULT);
+  SVDSolve(svd);
+
+  SVDGetConverged(svd, &wtf);
+  for (i=0; i<wtf; i++){ //Iterate through the number of converged iteratio
+    SVDGetSingularTriplet(svd, i, &sigma, singular, decomposition);
+    if (sigma >0)
+      sigma = 1.0/sigma;
+    else
+      sigma = sigma;
+    VecScale(decomposition, sigma);
+    VecGetValues(singular, rowSize, rowIndex, singular_i);
+    for (j=0; j<rowSize; j++){
+      VecCopy(decomposition, decomptemp);
+      VecScale(decomptemp, singular_i[j]);
+      //---------------------------------------------------------------------------
+      // Implementation
+      //---------------------------------------------------------------------------
+      VecGetValues(decomptemp, colSize, colIndex, V_i); //extract value to S
+      for (k=0; k<colSize;k++){
+        if (fabs(V_i[k])>pow(10,-8)){
+	  MatSetValue(*Aplus,k,j,V_i[k],ADD_VALUES);
+	  }
+      }
+      /* ks_Vec2MatCol(*Aplus, colSize, colIndex, j, decomptemp, ADD_VALUES); */
+    }
+  }
+
+  MatAssemblyBegin(*Aplus, MAT_FINAL_ASSEMBLY);
+  MatAssemblyEnd(*Aplus, MAT_FINAL_ASSEMBLY);
+  //----------------------------------------------------------------------------
+  // T e r  m i n a t i o n
+  //----------------------------------------------------------------------------
+  VecDestroy(&singular);
+  VecDestroy(&decomposition);
+  VecDestroy(&decomptemp);
+  SVDDestroy(&svd);
+  free(rowIndex);
+  free(colIndex);
+  free(singular_i);
+  free(V_i);
+}
+
+
+
+
+void moorePenrosePseudoInv(Mat A, PetscInt rowSize, PetscInt colSize, Mat *Aplus){
   int i, j;
   PetscInt *rowIndex = (PetscInt *) malloc (rowSize*sizeof(PetscInt));
   PetscInt *colIndex = (PetscInt *) malloc (colSize*sizeof(PetscInt));
@@ -138,7 +219,10 @@ void moorePenrosePseudoInv(Mat A, int rowSize, int colSize, Mat *Aplus){
   VecCreateSeq(PETSC_COMM_SELF, rowSize, &singular);
   VecCreateSeq(PETSC_COMM_SELF, colSize, &decomposition);
   VecCreateSeq(PETSC_COMM_SELF, colSize, &decomptemp);
-  MatCreateSeqDense(PETSC_COMM_SELF, colSize, rowSize, NULL, Aplus);
+  printf("BPOOOP\n");
+  yk_MatCreateSeqDense(Aplus, colSize, rowSize);
+  MatZeroEntries(*Aplus);
+  printf("MOTHEIREURHER\n");
   //---------------------------------------------------------------------------
   // I m p l e m e n t a t i o n
   //---------------------------------------------------------------------------
