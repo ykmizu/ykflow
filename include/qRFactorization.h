@@ -13,8 +13,8 @@
 #include "ks_read_solution_file.h"
 #include "ks_Residual.h"
 #include "ks_dRdU.h"
-#include "ks_podv2.h"  
-
+#include "ks_podv2.h"
+void linearLeastSquaresHROM(Mat A, Vec b, Vec x);
 void linearLeastSquares(Mat A, Vec b, Vec x);
 void qRFactorization(Mat A, Mat Q, Mat R);
 

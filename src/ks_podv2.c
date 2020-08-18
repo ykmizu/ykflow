@@ -219,10 +219,8 @@ void moorePenrosePseudoInv(Mat A, PetscInt rowSize, PetscInt colSize, Mat *Aplus
   VecCreateSeq(PETSC_COMM_SELF, rowSize, &singular);
   VecCreateSeq(PETSC_COMM_SELF, colSize, &decomposition);
   VecCreateSeq(PETSC_COMM_SELF, colSize, &decomptemp);
-  printf("BPOOOP\n");
   yk_MatCreateSeqDense(Aplus, colSize, rowSize);
   MatZeroEntries(*Aplus);
-  printf("MOTHEIREURHER\n");
   //---------------------------------------------------------------------------
   // I m p l e m e n t a t i o n
   //---------------------------------------------------------------------------

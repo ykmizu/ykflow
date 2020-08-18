@@ -30,7 +30,6 @@ void ks_printSolution(Universe eqn, Galaxy* U, int node){
   // Implementation
   //---------------------------------------------------------------------------
   sprintf(outputFile, "%s_%d.dat", U->id, node);
-  /* printf("print %s\n", outputFile); */
   /* if (getcwd(cwd, sizeof(cwd)) != NULL) { */
   /*   printf("important one: Current working dir: %s\n", cwd); */
   /* } else { */
@@ -84,7 +83,7 @@ void ks_readSolution(Universe eqn, Galaxy* U, int node){
   char *lines = NULL;
   char cwd[1000];
   char *c_lines = NULL;
-  int length;
+  long long int length;
   char *buffer = (char *) malloc (eqn.numStates*23*sizeof(char));
   /* printf("%d\n", eqn.numStates*22); */
   U->time.node = node;
@@ -157,8 +156,8 @@ void yk_printLSSInitialCon(int size, double R[], int out_i){
   }
 }
 
-Mat * ks_readMatrix(char *filename, int systemSize, int nTime,
-		    Mat *resSnapshot, int *RJLinesCount, Is_it *reduced){
+Mat * ks_readMatrix(char *filename, PetscInt systemSize, PetscInt  nTime,
+		    Mat *resSnapshot, PetscInt *RJLinesCount, Is_it *reduced){
   int i, j, k;
   FILE *residualSnapshotFile;
   char *ith_line;
@@ -224,10 +223,10 @@ Mat * ks_readMatrix(char *filename, int systemSize, int nTime,
   return sResidual_mu;
 }
 
-void yk_fgets(FILE *stream, int row, double **snapshotArray, int *count){
+void yk_fgets(FILE *stream, PetscInt row, double **snapshotArray, PetscInt *count){
   int i;
-  int bufferSize = 0;
-  int endOfLine = 0;
+  PetscInt bufferSize = 0;
+  PetscInt endOfLine = 0;
   char input[1000000] = {0};
   char *targetBuffer = (char *) malloc (sizeof(char));
   //---------------------------------------------------------------------------

@@ -215,6 +215,10 @@ typedef struct{
   int JFlag;
   double normDrag;
   double normLift;
+  double normDrag_hrom;
+  double normLift_hrom;
+  Mat *sub_snapshot;
+  Mat *subspaceTime;
 }Is_it;
 
 

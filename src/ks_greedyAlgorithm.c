@@ -28,11 +28,13 @@ PetscScalar *yk_reallocPetscScalar(PetscScalar *oldArray, int newSize){
 
 
 void yk_spaceTimeGappyError(Cluster *primal, int *numTempSam_r, Mat Z,
-			    int count, Vec gappyError, int r_i, Is_it *reduced,
+			    int count, Vec gappyError, PetscInt r_i, Is_it *reduced,
 			    int dimenFlag){
   int i, j; //initialization for iteration
-  int colSize;
-  int rowSize;
+  PetscInt jj;
+  PetscInt r_ilong;
+  PetscInt colSize;
+  PetscInt rowSize;
   PetscInt row, col, nbar_r;
   PetscInt *rowIndex = NULL;
   PetscScalar valnorm;
@@ -120,6 +122,7 @@ void yk_spaceTimeGappyError(Cluster *primal, int *numTempSam_r, Mat Z,
       nbar_i = (PetscInt *) realloc (nbarR, r_i *sizeof(PetscInt));
       for (j=0; j<r_i; j++)
 	nbar_i[j] = j;
+      r_ilong = r_i;
       MatGetValues(reduced->ST_rOBResidual,row, rowIndex, r_i, nbar_i, phi_error);
 
       MatSetValues(annoyBasis_r, row, rowIndex, r_i, nbar_i, phi_error,
@@ -177,9 +180,10 @@ void yk_spaceTimeGappyError(Cluster *primal, int *numTempSam_r, Mat Z,
       MatConvert(epsilonMat, MATSAME, MAT_INITIAL_MATRIX, &epsilonMatT);
     //Calculate the epsilon error to use to find the indicies
     for (j=0; j<colSize; j++){
-      MatGetColumnVector(epsilonMatT, epsilonVec, j);
+      jj = j;
+      MatGetColumnVector(epsilonMatT, epsilonVec, jj);
       VecNorm(epsilonVec, NORM_2, &valnorm);
-      VecSetValues(gappyError, 1, &j, &valnorm, INSERT_VALUES);
+      VecSetValues(gappyError, 1, &jj, &valnorm, INSERT_VALUES);
     }
     VecAssemblyBegin(gappyError);
     VecAssemblyEnd(gappyError);
@@ -209,10 +213,11 @@ void yk_greedyAlgorithm_spatialSet(Cluster *primal, PetscInt **spatialSet,
   // Variables here                     // Comments section
   //------------------------------------//-------------------------------------
   int i, j, k;                           //initialization for iteration
-  int count0=0, count =0;               //Number of temporal indices keeping
+  PetscInt count0=0, count =0;               //Number of temporal indices keeping
   int flag;
-  int timeCount;
-  int *numTempSam_r;
+  PetscInt timeCount;
+  int numBasis = primal->self->basis.nodes;
+  PetscInt *numTempSam_r;
   PetscInt sysSize = primal->self->systemSize;
   PetscInt sysTime = primal->self->time.count; //not include t0
   PetscInt *keepTrack = (PetscInt *) malloc (primal->self->space.elem.count*sizeof(PetscInt));
@@ -224,24 +229,31 @@ void yk_greedyAlgorithm_spatialSet(Cluster *primal, PetscInt **spatialSet,
   Vec gappyError;
   Mat spaceIdentity,  timeIdentity;
   Mat Zin;
+  PetscInt one = 1;
+  int *tempNodeUSet = (int *) malloc     // array info on which element to keep
+    (primal->self->space.elem.count*sizeof(int));
+  int countwhat = 0;
+  int countyuki = 0;;
+  PetscInt *spatialFullSet=NULL;
+  PetscInt left; //everything is in terms of elements now
+
   //---------------------------------------------------------------------------
   // Initialization
   //---------------------------------------------------------------------------
   *spatialSet = NULL;
-
+  for (i=0; i<primal->self->space.elem.count; i++)
+    tempNodeUSet[i] = 0;
   for (i=0; i<primal->self->space.elem.count; i++)
     keepTrack[i] = 0;
-
   MatGetSize(reduced->ST_rOBResidual, &row, &nbar_r);
-  numTempSam_r = (int *) malloc (nbar_r*sizeof(int));
+
+  numTempSam_r = (PetscInt *) malloc (nbar_r*sizeof(PetscInt));
 
   VecCreate(PETSC_COMM_SELF, &gappyError);
   VecSetSizes(gappyError, sysSize, sysSize);
   VecSetFromOptions(gappyError);
 
   //Create the idenity spatial matrix
-
-
   timeCount = reduced->nSampleTime-1;
   MatCreate(PETSC_COMM_SELF, &timeIdentity);
   MatSetSizes(timeIdentity, timeCount, sysTime, timeCount, sysTime);
@@ -253,105 +265,93 @@ void yk_greedyAlgorithm_spatialSet(Cluster *primal, PetscInt **spatialSet,
   MatAssemblyBegin(timeIdentity, MAT_FINAL_ASSEMBLY);
   MatAssemblyEnd(timeIdentity, MAT_FINAL_ASSEMBLY);
 
-  /* MatCreate(PETSC_COMM_SELF, &spaceIdentity); */
-  /* MatSetSizes(spaceIdentity, sysSize, sysSize, sysSize, sysSize); */
-  /* MatSetType(spaceIdentity, MATSEQAIJ); */
-  /* MatSeqAIJSetPreallocation(spaceIdentity, 1, NULL); */
-  /* MatZeroEntries(spaceIdentity); */
-  /* MatAssemblyBegin(spaceIdentity, MAT_FINAL_ASSEMBLY); */
-  /* MatAssemblyEnd(spaceIdentity, MAT_FINAL_ASSEMBLY); */
-  /* MatShift(spaceIdentity, 1); */
- //---------------------------------------------------------------------------
+  //---------------------------------------------------------------------------
   // Implementation
   //---------------------------------------------------------------------------
   //Determine number of temporal samples to compute at each greedy iteration
-  int left; //everything is in terms of elements now
   for (i=0; i<nbar_r; i++){
     if (i<nbar_s % nbar_r)
       numTempSam_r[i] = floor(nbar_s/nbar_r)+1;
     else
       numTempSam_r[i] = floor(nbar_s/nbar_r);
   }
-  int countyuki = 0;
-  //Begin the greedy iteratio
-
-  //Iterate through the number of residual basis
+  /* //Iterate through the number of residual basis */
   for (i=0; i<nbar_r; i++){
-    yk_spaceTimeGappyError(primal,numTempSam_r, Zin, count, gappyError,i,
-			   reduced, 1);
-    /* VecView(gappyError, PETSC_VIEWER_STDOUT_SELF); */
-    /* getchar(); */
-    //Calculate the total number of indicies we are adding here
-    count0 = count;  //Save the number of time nodes from previous iteration
-    count += numTempSam_r[i];
-    //change size of the time indices to take to account of new indices added
-    *spatialSet = yk_reallocPetscInt(*spatialSet, count*12);
-
-    //Find the time indicies to add
-    for (j=0; j<numTempSam_r[i]; j++){
-      /* printf("%d\n", i); */
-      /* printf("%d\n", j); */
-      /* printf("%d\n", numTempSam_r[i]); */
-
-      flag = 0;
-      while (flag == 0){
-
- 	VecMax(gappyError, &locMax, &maxValue);
-	left = (int)floor(locMax/12.0);
-	/* printf("keepTrack %d\n", keepTrack[left]); */
-	/* printf("left %d\n", left); */
-	if (keepTrack[left] ==0){
-	  keepTrack[left]  = 1;
-	  for (k=0; k<12; k++){
-	    (*spatialSet)[countyuki] = 12*left+k;
-	    countyuki++;
-	  }flag = 1;
- 	}
-	for (k=0; k<12; k++)
-	  VecSetValue(gappyError, 12*left+k, 0, INSERT_VALUES);
+    if (numTempSam_r[i] > 0){
+      count0 = count;  //Save the number of time nodes from previous iteration
+      count += numTempSam_r[i];
+      yk_spaceTimeGappyError(primal,numTempSam_r, Zin, count, gappyError,i,
+			     reduced, 1);
+      spatialFullSet = yk_reallocPetscInt(spatialFullSet, count*12);
+      *spatialSet = yk_reallocPetscInt(*spatialSet,count);
+      for (j=0; j<numTempSam_r[i]; j++){
+	flag = 0;
+	while (flag == 0){
+	  /* 	printf("wo\n"); */
+	  VecMax(gappyError, &locMax, &maxValue);
+	  left = (int)(locMax/12.0);
+	  if (keepTrack[left] ==0){
+	    keepTrack[left]  = 1;
+	    (*spatialSet)[countwhat]=left;
+	    tempNodeUSet[left] = 1;
+	    for (k=0; k<12; k++){
+	      spatialFullSet[countyuki] = 12*left+k;
+	      countyuki++;
+	    }
+	    countwhat++;
+	    flag =1 ;
+	  }
+	  for (k=0; k<12; k++)
+	    VecSetValue(gappyError, 12*left+k, 0, INSERT_VALUES);
+	}
       }
+      PetscSortInt(count*12, spatialFullSet);
+      PetscSortInt(count, *spatialSet);
+
+      /*   //Create the identity matrix for time adfter adding more nodes */
+      MatCreate(PETSC_COMM_SELF, &spaceIdentity);
+      MatSetSizes(spaceIdentity, count*12, sysSize, count*12, sysSize);
+      MatSetType(spaceIdentity, MATSEQAIJ);
+      MatSeqAIJSetPreallocation(spaceIdentity, 1, NULL);
+      /*   //Fill in the identity matrix based on the time indices we want to keep */
+      for (j=0; j<count*12; j++)
+	MatSetValue(spaceIdentity, j, spatialFullSet[j], 1, INSERT_VALUES);
+      MatAssemblyBegin(spaceIdentity, MAT_FINAL_ASSEMBLY);
+      MatAssemblyEnd(spaceIdentity, MAT_FINAL_ASSEMBLY);
+      /*   //Create the Z matrix given the time and space indces */
+      yk_kkron(timeIdentity, spaceIdentity, &Zin);
+      MatDestroy(&spaceIdentity);
     }
-
-    //Sort the values so that you can create the Z matrix correctly
-    PetscSortInt(count*12, *spatialSet);
-    //Create the identity matrix for time adfter adding more nodes
-    MatCreate(PETSC_COMM_SELF, &spaceIdentity);
-    MatSetSizes(spaceIdentity, count*12, sysSize, count*12, sysSize);
-    MatSetType(spaceIdentity, MATSEQAIJ);
-    MatSeqAIJSetPreallocation(spaceIdentity, 1, NULL);
-    //Fill in the identity matrix based on the time indices we want to keep
-    for (j=0; j<count*12; j++)
-      MatSetValue(spaceIdentity, j, (*spatialSet)[j], 1, INSERT_VALUES);
-    MatAssemblyBegin(spaceIdentity, MAT_FINAL_ASSEMBLY);
-    MatAssemblyEnd(spaceIdentity, MAT_FINAL_ASSEMBLY);
-    //Create the Z matrix given the time and space indces
-    yk_kkron(timeIdentity, spaceIdentity, &Zin);
-
-    /* for  */
-    /* /\* VecView(*spatialSet, PETSC_VIEWER_STDOUT_SELF); *\/ */
-    /* getchar(); */
-
-    /* getchar(); */
-
-    /* if (i == nbar_r-1){ */
-    /*   printf("tis is akiko speaking\n"); */
-    /*   MatDuplicate(spaceIdentity, MAT_COPY_VALUES, &reduced->spaceZ); */
-    /* } */
-    MatDestroy(&spaceIdentity);
-
   }
-
-  /* for (i=0; i<count*12; i++) */
-  /*   printf("%d\n", (*spatialSet)[i]); */
-  /* getchar(); */
-  /* if (numTempSam_r[nbar_r-1] != 0) */
-  /*   MatDestroy(&Z); */
   MatDuplicate(Zin, MAT_COPY_VALUES, Z);
+  //---------------------------------------------------------------------------
+  // Create the reducedMesh with elems that are the sample elems
+  //---------------------------------------------------------------------------
+  reduced->reducedMesh.elem.count = reduced->nSampleNodes;
+  reduced->reducedMesh.node.count = reduced->nSampleNodes*numBasis;
+  initArrayInt(&reduced->reducedMesh.elem, reduced->nSampleNodes);
+  initArrayInt(&reduced->reducedMesh.node, reduced->nSampleNodes*numBasis);
+  count = 0;
+
+
+  for (i=0; i<primal->self->space.elem.count; i++){
+    if (tempNodeUSet[i] == 1){ //If this element exists in reduced mesh
+      reduced->reducedMesh.elem.array[count] = i;
+      for (j=0; j<numBasis; j++)
+        reduced->reducedMesh.node.array[count*numBasis+j] = i*numBasis+j;
+      count++;
+    }
+  }
+  //---------------------------------------------------------------------------
+  // Destroy Everything
+  //---------------------------------------------------------------------------
   free(numTempSam_r);
   free(keepTrack);
+  free(spatialFullSet);
   VecDestroy(&gappyError);
   MatDestroy(&timeIdentity);
   MatDestroy(&Zin);
+  free(tempNodeUSet);
 }
 
 
@@ -362,9 +362,9 @@ void yk_greedyAlgorithm_temporalSet(Cluster *primal, PetscInt **temporalSet,
   // Variables here                     // Comments section
   //------------------------------------//-------------------------------------
   int i, j;                             //initialization for iteration
-  int count0=0, count =0;               //Number of temporal indices keeping
+  PetscInt count0=0, count =0;               //Number of temporal indices keeping
   int flag;
-  int *numTempSam_r;
+  PetscInt *numTempSam_r;
   PetscInt sysSize = primal->self->systemSize;
   PetscInt sysTime = primal->self->time.count; //not include t0
   PetscInt *keepTrack = (PetscInt *) malloc ((sysTime)*sizeof(PetscInt));
@@ -385,7 +385,7 @@ void yk_greedyAlgorithm_temporalSet(Cluster *primal, PetscInt **temporalSet,
     keepTrack[i] = 0;
 
   MatGetSize(reduced->ST_rOBResidual, &row, &nbar_r);
-  numTempSam_r = (int *) malloc (nbar_r*sizeof(int));
+  numTempSam_r = (PetscInt*) malloc (nbar_r*sizeof(PetscInt));
 
   VecCreate(PETSC_COMM_SELF, &gappyError);
   VecSetSizes(gappyError, sysTime, sysTime);

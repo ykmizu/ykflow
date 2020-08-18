@@ -1,6 +1,8 @@
 
 //THIS IS THE RIGHT ONE FEB 6
 
+
+
 #include <Python.h>
 #include "yk_XFlow.h"
 #include <math.h>
@@ -109,17 +111,18 @@ void yk_findAdjacentElems(yk_PrimalSolver *ykflow, Cluster *primal,
   int nn = 1208;
   int pelem;
   int egR, eR, faceR;
-  int totElem =  primal->self->space.elem.count;
-  int *keepTrack = (int *) malloc (totElem*sizeof(int));
+  PetscInt totElem =  primal->self->space.elem.count;
+  PetscInt *keepTrack = (PetscInt *) malloc (totElem*sizeof(PetscInt));
   int pie;
+  //int count =0;
   int count = reduced->reducedMesh.elem.count;
   int counter = 0;
-  int sysSize = primal->self->systemSize;
-  int numBasis = primal->self->basis.nodes;
-  int elemSize = numBasis * 4;
+  PetscInt sysSize = primal->self->systemSize;
+  PetscInt numBasis = primal->self->basis.nodes;
+  PetscInt elemSize = numBasis * 4;
   Mat timeIdentity;
-  int sysTime = primal->self->time.count;
-  int timeCount = reduced->nSampleTime-1;
+  PetscInt sysTime = primal->self->time.count;
+  PetscInt timeCount = reduced->nSampleTime-1;
   MatCreate(PETSC_COMM_SELF, &timeIdentity);
   MatSetSizes(timeIdentity, timeCount, sysTime, timeCount, sysTime);
   MatSetType(timeIdentity, MATSEQAIJ);
@@ -139,7 +142,6 @@ void yk_findAdjacentElems(yk_PrimalSolver *ykflow, Cluster *primal,
     keepTrack[i] = 0;
   for (i=0; i<reduced->reducedMesh.elem.count; i++)
     keepTrack[reduced->reducedMesh.elem.array[i]]=1;
-
   /* int * sElem = xflow->All->Mesh->ElemGroup[0].sElem; */
   //---------------------------------------------------------------------------
   // Implementation
@@ -163,7 +165,6 @@ void yk_findAdjacentElems(yk_PrimalSolver *ykflow, Cluster *primal,
 			    &faceR);
       if (eR!=-1){
 	xf_EgrpElem2Index(xflow->All->Mesh, egR, eR, &pie);
-
 	if (keepTrack[pie] ==0 && eR != -1){
 	  keepTrack[pie] = 1;
 	  count ++;
@@ -174,7 +175,6 @@ void yk_findAdjacentElems(yk_PrimalSolver *ykflow, Cluster *primal,
   }
   xf_NeighborAcrossFace(xflow->All->Mesh, 0, 0, 0,
 			&egR, &eR, &faceR);
-
   //Make the mshOs, the number of columns in the jacobian matrix
   *mshOs = (PetscInt *) malloc (count*sizeof(PetscInt));
 
@@ -185,7 +185,6 @@ void yk_findAdjacentElems(yk_PrimalSolver *ykflow, Cluster *primal,
 
   for (i=0; i<totElem; i++)
     reduced->reducedMesh_Os.i_ElemCom[i] = 0;
-
   MatCreate(PETSC_COMM_SELF, &reduced->spaceZ);
   MatSetSizes(reduced->spaceZ, count*elemSize, sysSize, count*elemSize, sysSize);
   MatSetType(reduced->spaceZ, MATSEQAIJ);
@@ -215,8 +214,6 @@ void yk_findAdjacentElems(yk_PrimalSolver *ykflow, Cluster *primal,
   MatAssemblyEnd(reduced->spaceZ, MAT_FINAL_ASSEMBLY);
 
   reduced->reducedMesh_Os.systemSize = reduced->reducedMesh_Os.elem.count*12;
-
-  /* PetscInt m, n; */
   yk_kkron(timeIdentity, reduced->spaceZ, &reduced->Z_Os);
   free(keepTrack);
   MatDestroy(&timeIdentity);
@@ -502,8 +499,8 @@ void yk_vector2Vec(xf_All *All, xf_Vector *A, Galaxy *pObj, Vec vecObj,
   //------------------------------------//-------------------------------------
   // Variables here                     // Comments section
   //------------------------------------//-------------------------------------
-  int i, j, k, m;                          // initialization for iteration
-  int rOrd;
+  PetscInt i, j, k, m;                          // initialization for iteration
+  PetscInt rOrd;
   int globalElem;
   int localElem;
   int floorElem;
@@ -586,7 +583,7 @@ void yk_fomBuffer(yk_PrimalSolver *ykflow, Universe equation, Is_it *reduced, \
   int mach= reduced->paramMeshGrid[p*reduced->numParams]*10000;
   int alfa = round(reduced->paramMeshGrid[p*reduced->numParams+1]*1000);
   int reynolds = reduced->paramMeshGrid[p*reduced->numParams+2];
-  sprintf(nameOfDir, "%s/%s_M_%d_A_%d_Re_%d", ykflow->path, equation.nameEqn,
+  sprintf(nameOfDir, "%s/Re_5000/%s_M_%d_A_%d_Re_%d", ykflow->path, equation.nameEqn,
 	  mach,  alfa, reynolds);
 }
 
@@ -880,8 +877,6 @@ void yk_xflow_totalResidual(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   //Convert to Petsc Mat format (Jacobian)
   if (Jacobian != NULL)
     yk_matrix2D2MatGroup(xflow->All, R_U, state, Jacobian, reduced);
-
-
   if (reduced->JFlag == 1){
     for (i=0; i<2; i++)
       xf_CalculateOutput(xflow->All, xflow->All->EqnSet->Outputs->Output[i].Name, UGi[0],
@@ -1083,6 +1078,9 @@ void yk_Init(yk_PrimalSolver *ykflow, Multiverse *multiquation, Cluster *fom,
     fom->self->space.elem.count;
   fom->self->index = (PetscInt *) malloc(fom->self->systemSize*
 					 sizeof(PetscInt));
+  printf("%d\n", fom->self->space.elem.count);
+  printf("%d\n", reduced->pSampleElems*fom->self->space.elem.count);
+  getchar();
 
   reduced->nSampleNodes = (int)(reduced->pSampleElems*fom->self->space.elem.count);
   for (i=0; i<fom->self->systemSize; i++)
@@ -1489,7 +1487,6 @@ void yk_createSnapshotResidualFile(yk_PrimalSolver *ykflow,
       system(outputFile);
     }
     chdir(paramCalc);
-    printf("FIRST TWO WRRKS\n");
     //Implement gauss newton solve to find the reduced states
     yk_runReducedOrderModel_ST(ykflow_p, multiquation, fom, rom_p, NULL, reduced);
     //Open the residual file GN solver wrote and copy to the master res file
@@ -1650,8 +1647,7 @@ void yk_initializeYkflow(yk_PrimalSolver *ykflow, Multiverse *multiquation,
     fom->self->space.elem.count;
   fom->self->index = (PetscInt *) malloc(fom->self->systemSize*
                                          sizeof(PetscInt));
-
-  reduced->nSampleNodes = (int)(reduced->pSampleElems*
+  reduced->nSampleNodes = (PetscInt)(reduced->pSampleElems*
 				fom->self->space.elem.count);
   for (i=0; i<fom->self->systemSize; i++)
     fom->self->index[i] = i;
@@ -1693,10 +1689,10 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   enum xfe_Bool DoRestart;
   char windowString[xf_MAXSTRLEN];
   char cwd[xf_MAXSTRLEN];
-  Vec delDrag;
-  Vec delLift;
-  double drag, lift;
-  PetscReal normDrag, normLift;
+  Vec delDrag, delDrag_hrom;
+  Vec delLift, delLift_hrom;
+  double drag, lift, drag_hrom, lift_hrom;
+  PetscReal normDrag, normLift, normDrag_hrom, normLift_hrom;
   //---------------------------------------------------------------------------
   // Initialization
   //---------------------------------------------------------------------------
@@ -1706,9 +1702,13 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   yk_VecCreateSeq(&delDrag, time);
   yk_VecCreateSeq(&delLift, time);
 
+  yk_VecCreateSeq(&delDrag_hrom, time);
+  yk_VecCreateSeq(&delLift_hrom, time);
+
   yk_MatCreateSeqDense(&fomMat, sysSize, time);
   yk_MatCreateSeqDense(&romMat, sysSize, time);
   yk_MatCreateSeqDense(&resRomMat, sysSize, time);
+
   if (reduced->runHrom == 1){
     yk_MatCreateSeqDense(&hromMat, sysSize, time);
     yk_VecCreateSeq(&hromVec, sysSize);
@@ -1717,9 +1717,9 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   //---------------------------------------------------------------------------
   // Space-Time Reduced-Order Modeling
   //---------------------------------------------------------------------------
-  reduced->JFlag = 0;
   yk_textBoldBorder("ykflow: Windowed Space-Time Model Order Reduction");
   for (i=0; i<reduced->nTimeSegs; i++){ //Number of time windows
+    reduced->JFlag = 0;
     fom->self->time.window_i = i;
     sprintf(windowString, "W i n d o w  %d", i);
     yk_textBorder(windowString);
@@ -1776,42 +1776,47 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
       ks_Vec2MatCol(resRomMat, sysSize, fom->self->index, j_i, romVec,
 		    INSERT_VALUES);
 
-    /* 	if (reduced->runHrom==1){ */
-    /* 	  ks_readSolution(multiquation->equation, hrom->stateFull, j_i+1); */
-    /* 	  array2Vec(multiquation->equation, hrom->stateFull, fom->self->space, */
-    /* 		    hromVec); */
-
-    /* 	  ks_Vec2MatCol(hromMat, sysSize, fom->self->index, j_i, hromVec, */
-    /* 			INSERT_VALUES); */
-    /* 	  //RESIDUAL */
-    /* 	  hrom->stateFull->time.node = j_i+1; */
-
-
-    /* 	  yk_xflow_totalResidual(ykflow, multiquation, hrom->stateFull, hromVec, */
-    /* 				 NULL, reduced, 0); */
-    /* 	  ks_Vec2MatCol(resHromMat, sysSize, fom->self->index, j_i, hromVec, */
-    /* 			INSERT_VALUES); */
-    /* 	} */
+      if (reduced->runHrom==1){
+	ks_readSolution(multiquation->equation, hrom->stateFull, j_i+1);
+	array2Vec(multiquation->equation, hrom->stateFull, fom->self->space,
+		  hromVec);
+	ks_Vec2MatCol(hromMat, sysSize, fom->self->index, j_i, hromVec,
+		      INSERT_VALUES);
+	//RESIDUAL
+	hrom->stateFull->time.node = j_i+1;
+	yk_xflow_totalResidual(ykflow, multiquation, hrom->stateFull, hromVec,
+			       NULL, reduced, 0);
+	drag_hrom=hrom->stateFull->J[0]-fom->self->J[0];
+	lift_hrom=hrom->stateFull->J[1]-fom->self->J[1];
+	VecSetValue(delDrag_hrom, j_i, drag_hrom, INSERT_VALUES);
+	VecSetValue(delLift_hrom, j_i, lift_hrom, INSERT_VALUES);
+	ks_Vec2MatCol(resHromMat, sysSize, fom->self->index, j_i, hromVec,
+		      INSERT_VALUES);
+      }
     }
 
     yk_textBorder("Postprocess Data");
     yk_print2xflowTxt(ykflow, multiquation, rom->self);
-    /* if (reduced->runHrom==1) */
-    /*   yk_print2xflowTxt(ykflow, multiquation, hrom->stateFull); */
+    if (reduced->runHrom==1)
+      yk_print2xflowTxt(ykflow, multiquation, hrom->stateFull);
     //-------------------------------------------------------------------------
     // Destroy everything
     //-------------------------------------------------------------------------
     yk_destroyReducedOrderModel_ST(ykflow, multiquation, fom, rom, reduced);
-    /* if (reduced->runHrom==1) */
-    /*   yk_destroyHyperReducedOrderModel_ST(ykflow, multiquation,fom,hrom,reduced); */
-    /* for (j=0; j<xflow->All->Mesh->nElemGroup; j++) */
-  /*     xf_Release((void **) xflow->All->Mesh->ElemGroup[j].sElem); */
+    if (reduced->runHrom==1)
+      yk_destroyHyperReducedOrderModel_ST(ykflow, multiquation,fom,hrom,reduced);
+    for (j=0; j<xflow->All->Mesh->nElemGroup; j++)
+      xf_Release((void **) xflow->All->Mesh->ElemGroup[j].sElem);
   }
 
   yk_textBoldBorder("Numerical Results");
 
   VecNorm(delDrag, NORM_2, &reduced->normDrag);
   VecNorm(delLift, NORM_2, &reduced->normLift);
+
+  VecNorm(delDrag_hrom, NORM_2, &reduced->normDrag_hrom);
+  VecNorm(delLift_hrom, NORM_2, &reduced->normLift_hrom);
+
 
   printf("HUMANS %g %g\n", reduced->normDrag, reduced->normLift);
 
@@ -1834,18 +1839,18 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
 
   reduced->relnormROM = normROM/normFOM;
   printf("%g\n", reduced->relnormROM);
-  /* if (reduced->runHrom == 1){ */
-  /*   MatAssemblyBegin(hromMat, MAT_FINAL_ASSEMBLY); */
-  /*   MatAssemblyEnd(hromMat, MAT_FINAL_ASSEMBLY); */
+  if (reduced->runHrom == 1){
+    MatAssemblyBegin(hromMat, MAT_FINAL_ASSEMBLY);
+    MatAssemblyEnd(hromMat, MAT_FINAL_ASSEMBLY);
 
-  /*   MatAssemblyBegin(resHromMat, MAT_FINAL_ASSEMBLY); */
-  /*   MatAssemblyEnd(resHromMat, MAT_FINAL_ASSEMBLY); */
-  /*   MatAXPY(hromMat, -1, fomMat, SAME_NONZERO_PATTERN); */
-  /*   MatNorm(hromMat, NORM_FROBENIUS, &normHROM); */
-  /*   reduced->relnormHROM = normHROM/normFOM; */
-  /*   MatNorm(resHromMat, NORM_FROBENIUS, &reduced->resNormHROM); */
+    MatAssemblyBegin(resHromMat, MAT_FINAL_ASSEMBLY);
+    MatAssemblyEnd(resHromMat, MAT_FINAL_ASSEMBLY);
+    MatAXPY(hromMat, -1, fomMat, SAME_NONZERO_PATTERN);
+    MatNorm(hromMat, NORM_FROBENIUS, &normHROM);
+    reduced->relnormHROM = normHROM/normFOM;
+    MatNorm(resHromMat, NORM_FROBENIUS, &reduced->resNormHROM);
 
-  /* } */
+  }
 
   for (i=reduced->nSims-5; i<reduced->nSims; i++){
     reduced->aveR_t+=reduced->r_t[i];
@@ -1871,6 +1876,9 @@ void yk_RunErrorEstChaos(yk_PrimalSolver *ykflow, Multiverse *multiquation,
   VecDestroy(&delLift);
   if (reduced->hrom == 1){
     VecDestroy(&hromVec);
+    VecDestroy(&delDrag_hrom);
+    VecDestroy(&delLift_hrom);
+
     MatDestroy(&hromMat);
     MatDestroy(&resHromMat);
   }
@@ -1955,7 +1963,6 @@ void yk_write2ExcelFile(Cluster *primal, Is_it *reduced){
       index_t_r+=sprintf(&str_res_t[index_t_r], "]");
     }
   }
-  printf("letitgo\n");
   //---------------------------------------------------------------------------
   //Write to an excel file
   //---------------------------------------------------------------------------
@@ -1993,7 +2000,6 @@ void yk_write2ExcelFile(Cluster *primal, Is_it *reduced){
   worksheet_write_string(worksheet, 0, 14, "nSim1", NULL);
   worksheet_write_number(worksheet, 1, 14, reduced->r_t[nSims-5], NULL);
   worksheet_write_string(worksheet, 0, 15, "nSim2", NULL);
-  printf("letitbgo\n");
   worksheet_write_number(worksheet, 1, 15, reduced->r_t[nSims-4], NULL);
   worksheet_write_string(worksheet, 0, 16, "nSim3", NULL);
   worksheet_write_number(worksheet, 1, 16, reduced->r_t[nSims-3], NULL);
@@ -2022,18 +2028,22 @@ void yk_write2ExcelFile(Cluster *primal, Is_it *reduced){
     worksheet_write_number(worksheet, 1, 27, reduced->relnormHROM, NULL);
     worksheet_write_string(worksheet, 0, 28, "residualgnat", NULL);
     worksheet_write_number(worksheet, 1, 28,  reduced->resNormHROM, NULL);
-    worksheet_write_string(worksheet, 0, 29, "nSim1", NULL);
-    worksheet_write_number(worksheet, 1, 29, reduced->h_t[nSims-5], NULL);
-    worksheet_write_string(worksheet, 0, 30, "nSim2", NULL);
-    worksheet_write_number(worksheet, 1, 30, reduced->h_t[nSims-4], NULL);
-    worksheet_write_string(worksheet, 0, 31, "nSim3", NULL);
-    worksheet_write_number(worksheet, 1, 31, reduced->h_t[nSims-3], NULL);
-    worksheet_write_string(worksheet, 0, 32, "nSim4", NULL);
-    worksheet_write_number(worksheet, 1, 32, reduced->h_t[nSims-2], NULL);
-    worksheet_write_string(worksheet, 0, 33, "nSim5", NULL);
-    worksheet_write_number(worksheet, 1, 33, reduced->h_t[nSims-1], NULL);
-    worksheet_write_string(worksheet, 0, 34, "Average gnat", NULL);
-    worksheet_write_number(worksheet, 1, 34, reduced->aveH_t, NULL);
+    worksheet_write_string(worksheet, 0, 29, "L2 Drag Error gnat", NULL);
+    worksheet_write_number(worksheet, 1, 29, reduced->normDrag_hrom, NULL);
+    worksheet_write_string(worksheet, 0, 30, "L2 Lift Error gnat", NULL);
+    worksheet_write_number(worksheet, 1, 30, reduced->normLift_hrom, NULL);
+    worksheet_write_string(worksheet, 0, 31, "nSim1", NULL);
+    worksheet_write_number(worksheet, 1, 31, reduced->h_t[nSims-5], NULL);
+    worksheet_write_string(worksheet, 0, 32, "nSim2", NULL);
+    worksheet_write_number(worksheet, 1, 32, reduced->h_t[nSims-4], NULL);
+    worksheet_write_string(worksheet, 0, 33, "nSim3", NULL);
+    worksheet_write_number(worksheet, 1, 33, reduced->h_t[nSims-3], NULL);
+    worksheet_write_string(worksheet, 0, 34, "nSim4", NULL);
+    worksheet_write_number(worksheet, 1, 34, reduced->h_t[nSims-2], NULL);
+    worksheet_write_string(worksheet, 0, 35, "nSim5", NULL);
+    worksheet_write_number(worksheet, 1, 35, reduced->h_t[nSims-1], NULL);
+    worksheet_write_string(worksheet, 0, 36, "Average gnat", NULL);
+    worksheet_write_number(worksheet, 1, 36, reduced->aveH_t, NULL);
   }
   workbook_close(workbook);
 
@@ -2063,9 +2073,8 @@ int main(int argc, char** argv) {
   //---------------------------------------------------------------------------
 
   SlepcInitialize(&argc, &argv, NULL, NULL);
-  /* Py_Initialize(); */
   PetscViewerPushFormat(PETSC_VIEWER_STDOUT_SELF, PETSC_VIEWER_ASCII_MATLAB);
-
+  Py_Initialize();
   // initialize key-value
   xf_Call(xf_CreateKeyValue(&xflow->KeyValueArg));
   /* // parse arguments */
@@ -2095,8 +2104,17 @@ int main(int argc, char** argv) {
  /*  // Destroy everything */
  /*  //--------------------------------------------------------------------------- */
  /*  /\* printf("CPU TIME\n"); *\/ */
- /*  /\* printf("%0.16e\n", fom->cpuTime); *\/ */
-  /* Py_Finalize(); */
+  printf("%0.16e\n", fom->cpuTime);
+  if (reduced->runFomOnly==1){
+    lxw_workbook  *workbook;
+    lxw_worksheet *worksheet;
+    workbook  = workbook_new("FOM.xlsx");
+    worksheet = workbook_add_worksheet(workbook, NULL);
+    worksheet_write_string(worksheet, 0, 0, "Time FOM", NULL);
+    worksheet_write_number(worksheet, 1, 0, fom->cpuTime, NULL);
+    workbook_close(workbook);
+  }
+  Py_Finalize();
 
   xf_Call(xf_DestroyTimeHistData(xflow->TimeHistData));
   destroySystem(multiquation->equation, fom->self);

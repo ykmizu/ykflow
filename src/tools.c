@@ -82,9 +82,7 @@ void yk_kkron(Mat A, Mat B, Mat *KKRON){
   PetscInt *A_rowIndex, *A_colIndex;
   PetscScalar * A_array;
   MatGetSize(A, &A_row, &A_col);
-
   MatGetSize(B, &B_row, &B_col);
-
   A_rowIndex = (PetscInt *) malloc (A_row*sizeof(PetscInt));
   A_colIndex = (PetscInt *) malloc (A_col*sizeof(PetscInt));
   A_array = (PetscScalar *) malloc (A_row*A_col*sizeof(PetscScalar));
@@ -99,6 +97,7 @@ void yk_kkron(Mat A, Mat B, Mat *KKRON){
   for (i=0; i<A_col; i++)
     A_colIndex[i] = i;
   MatGetValues(A, A_row, A_rowIndex, A_col, A_colIndex, A_array);
+
   for (i=0; i<A_row; i++){
     for (j=0; j<A_col; j++){
       MatDuplicate(B,MAT_COPY_VALUES, &tempY[i*A_col+j]);
@@ -107,6 +106,7 @@ void yk_kkron(Mat A, Mat B, Mat *KKRON){
   }
 
   MatCreateNest(PETSC_COMM_SELF, A_row, NULL, A_col,NULL, tempY, KKRON);
+
   MatConvert(*KKRON, MATSEQAIJ, MAT_INPLACE_MATRIX, KKRON);
   free(A_rowIndex);
   free(A_colIndex);
@@ -358,23 +358,22 @@ void array2Vec(Universe equation, Galaxy *state, Mesh mesh, Vec vcon){
 /* } */
 void vec2Array(Universe equation, Galaxy *state, Mesh mesh, Vec vcon){
   int i, j;
-  int elem_i;
-  int basis = state->basis.nodes;
-  int elemSize = basis*equation.numStates;
-  int *ptr_values;
-  int *indexElem = (int *) malloc (elemSize*sizeof(int*));
+  PetscInt elem_i;
+  PetscInt basis = state->basis.nodes;
+  PetscInt elemSize = basis*equation.numStates;
+  PetscInt *ptr_values;
+  PetscInt *indexElem = (PetscInt *) malloc (elemSize*sizeof(PetscInt*));
   PetscInt systemSize = state->space.node.count*equation.numStates;
   PetscScalar *values = (PetscScalar *)malloc(systemSize*sizeof(PetscScalar));
   memset(values, 0, systemSize*sizeof(PetscScalar));
   for (i=0; i<mesh.elem.count; i++){
-    for (j=0; j<elemSize; j++)
+    for (j=0; j<elemSize; j++){
       indexElem[j] = i*elemSize+j;
-
+    }
     elem_i = mesh.elem.array[i];
     ptr_values = values + elem_i*elemSize;
     VecGetValues(vcon, elemSize, indexElem, ptr_values);
   }
-
   data2Array(equation, state, values);
   free(indexElem);
   free(values);

@@ -2,6 +2,57 @@
 #include "qRFactorization.h"
 
 //||Ax-b||
+
+void linearLeastSquaresHROM(Mat A, Vec b, Vec x){
+  Mat Q;
+  Mat R;
+  Vec rightHS;
+  KSP ksp;
+  PC pc;
+  PetscInt maxits = 1000;
+  PetscReal rtol = pow(10,-12);
+  PetscReal abstol = pow(10,-50);
+  PetscReal dtol= 1000;
+  PetscInt rowA;
+  PetscInt colA;
+  PetscScalar RHS;
+  Mat C;
+  Vec y;
+  Vec cc;
+  PetscReal val;
+  //----------------------------------------------------------------------------
+  // Initialization
+  //----------------------------------------------------------------------------
+  MatGetSize(A, &rowA, &colA);
+  MatCreateSeqDense(PETSC_COMM_SELF, rowA, colA, NULL, &Q);
+  MatCreateSeqDense(PETSC_COMM_SELF, colA, colA, NULL, &R);
+  KSPCreate(PETSC_COMM_SELF, &ksp);
+  //----------------------------------------------------------------------------
+  // Implementation
+  //----------------------------------------------------------------------------
+  MatView(A, PETSC_VIEWER_STDOUT_SELF);
+  VecView(b, PETSC_VIEWER_STDOUT_SELF);
+
+
+  qRFactorization(A, Q, R);
+
+  VecCreateSeq(PETSC_COMM_SELF, colA, &rightHS);
+  /* getchar(); */
+  /* MatTransposeMatMult(A,A ,MAT_INITIAL_MATRIX, PETSC_DEFAULT, &C); */
+  MatMultTranspose(Q, b, rightHS);
+  MatView(Q, PETSC_VIEWER_STDOUT_SELF);
+  KSPSetOperators(ksp, R, R);
+  KSPSetTolerances(ksp, rtol, abstol, dtol, maxits);
+  /* KSPSetType(ksp, KSPGMRES); */
+  KSPSetFromOptions(ksp);
+  /* KSPGetPC(ksp, &pc); */
+  /* PCSetType(pc, PCBJACOBI); */
+  KSPSolve(ksp, rightHS, x);
+  /* VecCopy(b, x); //x is the one that minimizations Ax-b */
+  /* VecDestroy(&rightHS); */
+  KSPDestroy(&ksp);
+}
+
 void linearLeastSquares(Mat A, Vec b, Vec x){
   Mat Q;
   Mat R;
@@ -70,7 +121,6 @@ void linearLeastSquares(Mat A, Vec b, Vec x){
   MatDestroy(&C);
   VecDestroy(&rightHS);
 }
-
 
 
 void qRFactorization(Mat A, Mat Q, Mat R){

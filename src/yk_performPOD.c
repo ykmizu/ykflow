@@ -619,11 +619,11 @@ void yk_formatSpaceTimeBasis(Cluster *primal, Mat *subspaceTime,
     }
   }
   //Now that we have all the information, we can create the petsc MAT object
-  MatCreate(PETSC_COMM_SELF, spaceTime);
-  MatSetSizes(*spaceTime, n_rows, n_spaceTimeBasis, n_rows, n_spaceTimeBasis);
-  MatSetType(*spaceTime, MATSEQAIJ); //Let's make it sparse
-  MatSeqAIJSetPreallocation(*spaceTime, NULL, nnz);
-  MatZeroEntries(*spaceTime);
+  /* MatCreate(PETSC_COMM_SELF, spaceTime); */
+  /* MatSetSizes(*spaceTime, n_rows, n_spaceTimeBasis, n_rows, n_spaceTimeBasis); */
+  /* MatSetType(*spaceTime, MATSEQAIJ); //Let's make it sparse */
+  /* MatSeqAIJSetPreallocation(*spaceTime, NULL, nnz); */
+  /* MatZeroEntries(*spaceTime); */
  //---------------------------------------------------------------------------
   // Implementation
   //---------------------------------------------------------------------------
@@ -653,9 +653,9 @@ void yk_formatSpaceTimeBasis(Cluster *primal, Mat *subspaceTime,
     // Create the giant fuckng matrix
     //-------------------------------------------------------------------------
     //Set the diagonals here
-    MatGetValues(subspaceTime[i], rows, rIndex, nBasis, bIndex, varray);
-    MatSetValues(*spaceTime, rows, st_index, nBasis, st_bIndex, varray,
-    		 INSERT_VALUES);
+    /* MatGetValues(subspaceTime[i], rows, rIndex, nBasis, bIndex, varray); */
+    /* MatSetValues(*spaceTime, rows, st_index, nBasis, st_bIndex, varray, */
+    /* 		 INSERT_VALUES); */
 
     for (j=0; j<primal->self->time.count; j++){
       for (k=0; k<primal->self->systemSize; k++)
@@ -678,8 +678,8 @@ void yk_formatSpaceTimeBasis(Cluster *primal, Mat *subspaceTime,
     	for (k=0; k<primal->self->systemSize; k++)
     	  index_i[k]=j*(primal->self->time.count*sizeN)+m*sizeN+k;
 
-    	MatSetValues(*spaceTime, primal->self->systemSize, index_i,
-    		     nBasis, st_bIndex, ex_array, INSERT_VALUES);
+    	/* MatSetValues(*spaceTime, primal->self->systemSize, index_i, */
+    	/* 	     nBasis, st_bIndex, ex_array, INSERT_VALUES); */
     	MatSetValues(spaceTime_i[j*primal->self->time.count+m],
     		     primal->self->systemSize, primal->self->index, nBasis,
     		     st_bIndex,
@@ -703,8 +703,8 @@ void yk_formatSpaceTimeBasis(Cluster *primal, Mat *subspaceTime,
   //---------------------------------------------------------------------------
   // Destroy Everything
   //---------------------------------------------------------------------------
-  MatAssemblyBegin(*spaceTime, MAT_FINAL_ASSEMBLY);
-  MatAssemblyEnd(*spaceTime,MAT_FINAL_ASSEMBLY);
+  /* MatAssemblyBegin(*spaceTime, MAT_FINAL_ASSEMBLY); */
+  /* MatAssemblyEnd(*spaceTime,MAT_FINAL_ASSEMBLY); */
   free(spaceindex);
   free(colIndex);
   free(index_i);

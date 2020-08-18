@@ -22,7 +22,7 @@
 PetscScalar *yk_reallocPetscScalar(PetscScalar *oldArray, int newSize);
 
 void yk_spaceTimeGappyError(Cluster *primal, int *numTempSam_r, Mat Z,
-			    int count, Vec gappyError, int r_i,
+			    int count, Vec gappyError, PetscInt r_i,
 			    Is_it *reduced, int dimenFlag);
 
 void yk_greedyAlgorithm_spatialSet(Cluster *primal, PetscInt **spatialSet,

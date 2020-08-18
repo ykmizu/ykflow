@@ -18,8 +18,8 @@ void ks_printReducedSolution(Universe eqn, Galaxy *U, int node);
 void yk_readLSSInitialCon(char *filename, double R[]);
 void yk_printLSSInitialCon(int size, double R[], int out_i);
 /* void ks_readMatrix(char *filename, int row, Mat *sResidual); */
-Mat *ks_readMatrix(char *filename, int systemSize, int nTime, Mat *snap,
-		   int *RJnum, Is_it *reduced);
-void yk_fgets(FILE *stream, int row, double **snapshotArray, int *count);
+Mat *ks_readMatrix(char *filename, PetscInt systemSize, PetscInt nTime, Mat *snap,
+		   PetscInt *RJnum, Is_it *reduced);
+void yk_fgets(FILE *stream, PetscInt row, double **snapshotArray, PetscInt *count);
 
 #endif
